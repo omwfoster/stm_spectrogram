@@ -18,11 +18,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "pdm2pcm.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "pdm_filter.h"
+
 
 /* USER CODE END Includes */
 
@@ -36,7 +37,7 @@ enum {
 #define REC_FREQ                          8000
 
 /* PDM buffer input size */
-#define INTERNAL_BUFF_SIZE      64
+#define INTERNAL_BUFF_SIZE      128
 
 /* PCM buffer output size */
 #define PCM_OUT_SIZE            16
@@ -46,42 +47,30 @@ enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-uint16_t counter = 0;
-uint8_t WaveRecStatus = 0;
-/* Current state of the audio recorder interface intialization */
-static uint32_t AudioRecInited = 0;
-/* Audio recording Samples format (from 8 to 16 bits) */
-uint32_t AudioRecBitRes = 16;
+
+
 uint16_t RecBuf[PCM_OUT_SIZE], RecBuf1[PCM_OUT_SIZE];
 uint8_t RecBufHeader[512], Switch = 0;
-__IO uint32_t Data_Status = 0;
-/* Audio recording number of channels (1 for Mono or 2 for Stereo) */
-uint32_t AudioRecChnlNbr = 1;
+
+
 /* Main buffer pointer for the recorded data storing */
 uint16_t *pAudioRecBuf;
-/* Current size of the recorded buffer */
-uint32_t AudioRecCurrSize = 0;
-uint16_t bytesWritten;
+
 /* Temporary data sample */
 static uint16_t InternalBuffer[INTERNAL_BUFF_SIZE];
-static uint32_t InternalBufferSize = 0;
 
-/* Audio recording frequency in Hz */
-#define REC_FREQ                          8000
 
-/* PDM buffer input size */
-#define INTERNAL_BUFF_SIZE      64
 
-/* PCM buffer output size */
-#define PCM_OUT_SIZE            16
 
 union U_Pdm {
 	struct {
-		uint8_t first_half[8];
-		uint8_t last_half[8];
+		uint8_t first_half[INTERNAL_BUFF_SIZE/2];
+		uint8_t last_half[INTERNAL_BUFF_SIZE/2];
 	};
-	uint8_t PDM_In[16];
+	uint8_t PDM_In[INTERNAL_BUFF_SIZE/2];
 } t_U_Pdm;
+
+
 
 uint16_t PDM_Out[16];
 
@@ -115,7 +104,7 @@ static void MX_SPI1_Init(void);
 static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 
-PDMFilter_InitStruct Filter;
+
 
 /* USER CODE END PFP */
 
@@ -141,13 +130,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-	Filter.LP_HZ = 8000;
-	Filter.HP_HZ = 10;
-	Filter.Fs = 16000;
-	Filter.Out_MicChannels = 1;
-	Filter.In_MicChannels = 1;
 
-	PDM_Filter_Init((PDMFilter_InitStruct*) &Filter);
 
   /* USER CODE END Init */
 
@@ -166,10 +149,11 @@ int main(void)
   MX_TIM1_Init();
   MX_SPI1_Init();
   MX_CRC_Init();
+  MX_PDM2PCM_Init();
   /* USER CODE BEGIN 2 */
 
 //	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-	HAL_SPI_Receive_DMA(&hspi1, &t_U_Pdm, 16);
+	HAL_SPI_Receive_DMA(&hspi1, &t_U_Pdm, INTERNAL_BUFF_SIZE);
 
   /* USER CODE END 2 */
 
@@ -250,6 +234,7 @@ static void MX_CRC_Init(void)
   {
     Error_Handler();
   }
+  __HAL_CRC_DR_RESET(&hcrc);
   /* USER CODE BEGIN CRC_Init 2 */
 
   /* USER CODE END CRC_Init 2 */
@@ -275,7 +260,7 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
@@ -377,14 +362,16 @@ static void MX_GPIO_Init(void)
 
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 
-	PDM_Filter(t_U_Pdm.first_half, PDM_Out, &Filter);
+
+	PDM_Filter(t_U_Pdm.first_half, &RecBuf , &PDM1_filter_handler);
 
 	wTransferState = TRANSFER_COMPLETE;
 }
 
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 
-	PDM_Filter(t_U_Pdm.last_half, PDM_Out, &Filter);
+
+	PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
 
 	wTransferState = TRANSFER_HALF;
 }
