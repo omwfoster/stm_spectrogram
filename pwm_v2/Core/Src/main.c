@@ -19,6 +19,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "pdm2pcm.h"
+#include "fft_module.h"
+#include "string.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -42,6 +44,8 @@ enum {
 /* PCM buffer output size */
 #define PCM_OUT_SIZE            16
 
+
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -49,15 +53,17 @@ enum {
 
 
 
-uint16_t RecBuf[PCM_OUT_SIZE], RecBuf1[PCM_OUT_SIZE];
-uint8_t RecBufHeader[512], Switch = 0;
+uint16_t RecBuf[PCM_OUT_SIZE];
 
 
-/* Main buffer pointer for the recorded data storing */
-uint16_t *pAudioRecBuf;
+
+
 
 /* Temporary data sample */
 static uint16_t InternalBuffer[INTERNAL_BUFF_SIZE];
+extern uint16_t pcm_output_block[FFT_SIZE];
+uint16_t * output_cursor = &pcm_output_block[0];
+static uint16_t * end_output_block = &pcm_output_block[FFT_SIZE - PCM_OUT_SIZE] ;
 
 
 
@@ -363,7 +369,12 @@ static void MX_GPIO_Init(void)
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 
 
-	PDM_Filter(t_U_Pdm.first_half, &RecBuf , &PDM1_filter_handler);
+	PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
+	memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+	uint16_t * next_cursor = output_cursor + PCM_OUT_SIZE;   //* sizeof(uint16_t);
+	output_cursor =  next_cursor <= end_output_block ? next_cursor : &pcm_output_block[0] ;
+
+
 
 	wTransferState = TRANSFER_COMPLETE;
 }
@@ -371,7 +382,11 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 
 
-	PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
+	PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
+	memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+	uint16_t * next_cursor = output_cursor + PCM_OUT_SIZE; // * sizeof(uint16_t);
+	output_cursor =  next_cursor <= end_output_block ? next_cursor : &pcm_output_block[0] ;
+
 
 	wTransferState = TRANSFER_HALF;
 }
