@@ -61,9 +61,12 @@ uint16_t RecBuf[PCM_OUT_SIZE];
 
 /* Temporary data sample */
 static uint16_t InternalBuffer[INTERNAL_BUFF_SIZE];
-extern uint16_t pcm_output_block[FFT_SIZE];
-uint16_t * output_cursor = &pcm_output_block[0];
-static uint16_t * end_output_block = &pcm_output_block[FFT_SIZE - PCM_OUT_SIZE] ;
+extern uint16_t pcm_output_block_ping[FFT_SIZE];
+extern uint16_t pcm_output_block_pong[FFT_SIZE];
+
+uint16_t * pcm_current_block = pcm_output_block_ping;
+uint16_t * output_cursor = pcm_output_block_ping;
+static uint16_t * end_output_block = &pcm_output_block_ping[FFT_SIZE - PCM_OUT_SIZE] ;
 
 
 
@@ -366,13 +369,33 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+
+void switch_block()
+{
+	pcm_current_block = (pcm_current_block == pcm_output_block_ping) ? pcm_output_block_pong : pcm_output_block_ping ;
+	output_cursor = &pcm_current_block[0];
+	end_output_block = &pcm_current_block[FFT_SIZE - PCM_OUT_SIZE] ;
+}
+
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
+
 
 
 	PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
 	memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
 	uint16_t * next_cursor = output_cursor + PCM_OUT_SIZE;   //* sizeof(uint16_t);
-	output_cursor =  next_cursor <= end_output_block ? next_cursor : &pcm_output_block[0] ;
+
+
+	if(next_cursor <= end_output_block)
+	{
+		output_cursor = next_cursor;
+	}
+	else
+	{
+	switch_block();
+	output_cursor =  pcm_current_block;
+
+	}
 
 
 
@@ -385,7 +408,18 @@ void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 	PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
 	memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
 	uint16_t * next_cursor = output_cursor + PCM_OUT_SIZE; // * sizeof(uint16_t);
-	output_cursor =  next_cursor <= end_output_block ? next_cursor : &pcm_output_block[0] ;
+
+
+	if(next_cursor <= end_output_block)
+	{
+		output_cursor = next_cursor;
+	}
+	else
+	{
+	switch_block();
+	output_cursor =  pcm_current_block;
+
+	}
 
 
 	wTransferState = TRANSFER_HALF;

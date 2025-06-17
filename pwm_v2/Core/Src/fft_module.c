@@ -8,6 +8,7 @@
 #include "fft_module.h"
 
 
-uint16_t pcm_output_block[FFT_SIZE];
+uint16_t pcm_output_block_ping[FFT_SIZE];
+uint16_t pcm_output_block_pong[FFT_SIZE];
 
 
