@@ -18,13 +18,16 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "pdm2pcm.h"
+
+#include "pdm2pcm_glo.h"
 #include "fft_module.h"
 #include "string.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+
+#include "arm_math.h"
 
 
 /* USER CODE END Includes */
@@ -67,6 +70,8 @@ extern uint16_t pcm_output_block_pong[FFT_SIZE];
 uint16_t * pcm_current_block = pcm_output_block_ping;
 uint16_t * output_cursor = pcm_output_block_ping;
 static uint16_t * end_output_block = &pcm_output_block_ping[FFT_SIZE - PCM_OUT_SIZE] ;
+uint16_t pcm_deinterleaved[FFT_SIZE];
+uint16_t * pcm_full = 0;
 
 
 
@@ -111,6 +116,7 @@ static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_CRC_Init(void);
+void deinterleave(void);
 /* USER CODE BEGIN PFP */
 
 
@@ -170,6 +176,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1) {
     /* USER CODE END WHILE */
+	if (pcm_full !=0 )
+	{
+	deinterleave();
+	fft_test();
+	}
 
     /* USER CODE BEGIN 3 */
 	}
@@ -372,11 +383,17 @@ static void MX_GPIO_Init(void)
 
 void switch_block()
 {
+	pcm_full = pcm_current_block;
 	pcm_current_block = (pcm_current_block == pcm_output_block_ping) ? pcm_output_block_pong : pcm_output_block_ping ;
 	output_cursor = &pcm_current_block[0];
 	end_output_block = &pcm_current_block[FFT_SIZE - PCM_OUT_SIZE] ;
 }
 
+
+void deinterleave()
+{
+	PDM_Filter_deInterleave((void *)pcm_full, (void *)pcm_deinterleaved, &PDM1_filter_handler);
+}
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 
 
@@ -393,8 +410,6 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 	else
 	{
 	switch_block();
-	output_cursor =  pcm_current_block;
-
 	}
 
 
@@ -417,10 +432,7 @@ void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 	else
 	{
 	switch_block();
-	output_cursor =  pcm_current_block;
-
 	}
-
 
 	wTransferState = TRANSFER_HALF;
 }

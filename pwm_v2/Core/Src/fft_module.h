@@ -11,6 +11,7 @@
 #define FFT_SIZE 512
 
 #include "stdint.h"
+void fft_test(void);
 
 
 
