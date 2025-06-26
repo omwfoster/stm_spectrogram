@@ -10,33 +10,20 @@
 
 
 
-uint16_t pcm_output_block_ping[FFT_SIZE];
-uint16_t pcm_output_block_pong[FFT_SIZE];
+uint16_t pcm_output_block_ping[FFT_SIZE * 2];
+uint16_t pcm_output_block_pong[FFT_SIZE * 2];
+uint16_t *pcm_current_block = pcm_output_block_ping;
 
 
 
 
-void fft_test(void){
+void fft_test(uint16_t * sample_block){
     static arm_rfft_instance_q15 fft_instance;
     static q15_t output[FFT_SIZE*2]; //has to be twice FFT size
 
-
-
-
-
     arm_status status;
 
-    status = arm_rfft_init_q15(&fft_instance, 256/*bin count*/, 0/*forward FFT*/, 1/*output bit order is normal*/);
+    status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/, 0/*forward FFT*/, 1/*output bit order is normal*/);
+    arm_rfft_q15(&fft_instance, (q15_t*)sample_block, output);
 
-
-    for (uint32_t i = 0; i < sizeof(pcm_output_block_ping)/sizeof(pcm_output_block_ping[0]); i++){
-
-
-            arm_rfft_q15(&fft_instance, (q15_t*)pcm_output_block_ping, output);
-            arm_abs_q15(output, output, FFT_SIZE);
-            for (uint32_t j = 0; j < FFT_SIZE; j++){
-
-            }
-
-        }
 }

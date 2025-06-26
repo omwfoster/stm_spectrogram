@@ -11,7 +11,7 @@
 #define FFT_SIZE 512
 
 #include "stdint.h"
-void fft_test(void);
+void fft_test(uint16_t * sample_block);
 
 
 
