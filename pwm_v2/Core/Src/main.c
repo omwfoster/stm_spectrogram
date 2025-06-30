@@ -25,6 +25,7 @@
 #include "stdbool.h"
 #include "fft_module.h"
 #include "ai_logging.h"
+#include "arm_math.h"
 
 /* USER CODE END Includes */
 
@@ -59,6 +60,8 @@ static uint16_t InternalBuffer[INTERNAL_BUFF_SIZE];
 extern uint16_t pcm_output_block_ping[FFT_SIZE * 2];
 extern uint16_t pcm_output_block_pong[FFT_SIZE * 2];
 
+q15_t fft_output[FFT_SIZE * 2]; //has to be twice FFT size
+
 extern uint16_t *pcm_current_block;
 bool block_ready = false;
 uint16_t *output_cursor = pcm_output_block_ping;
@@ -81,10 +84,6 @@ __IO uint32_t wTransferState = TRANSFER_WAIT;
 
 ai_logging_device_t device;
 
-
-
-
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -100,7 +99,8 @@ DMA_HandleTypeDef hdma_spi1_rx;
 
 TIM_HandleTypeDef htim1;
 
-USART_HandleTypeDef husart1;
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -113,12 +113,12 @@ static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_CRC_Init(void);
-static void MX_USART1_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 void deinterleave(uint16_t *mixed, uint16_t Length);
-uint32_t usart_send_function(uint8_t *, uint32_t);
-void pack_data(ai_logging_packet_t * p);
+uint32_t usart_send_function(uint8_t*, uint32_t);
+void pack_data(ai_logging_packet_t *p);
 
 /* USER CODE END PFP */
 
@@ -163,17 +163,17 @@ int main(void)
   MX_SPI1_Init();
   MX_CRC_Init();
   MX_PDM2PCM_Init();
-  MX_USART1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+	uint8_t send_buffer[SEND_BUFFER_MAX_SIZE];
+	ai_logging_init(&device);
+	ai_logging_init_send(&device, usart_send_function, send_buffer,
+			SEND_BUFFER_MAX_SIZE);
+	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &t_U_Pdm, INTERNAL_BUFF_SIZE);
 
-  uint8_t send_buffer[SEND_BUFFER_MAX_SIZE];
-  ai_logging_init(&device);
-  ai_logging_init_send(&device, usart_send_function, send_buffer,SEND_BUFFER_MAX_SIZE);
-  HAL_SPI_Receive_DMA(&hspi1, &t_U_Pdm, INTERNAL_BUFF_SIZE);
-
-  ai_logging_packet_t packet;
-  packet.timestamp = -1;
+	ai_logging_packet_t packet;
+	packet.timestamp = -1;
 
   /* USER CODE END 2 */
 
@@ -190,12 +190,12 @@ int main(void)
 			pack_data(&packet);
 			block_ready = false;
 
-	}
+		}
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-}
+	}
   /* USER CODE END 3 */
 }
 
@@ -362,7 +362,7 @@ static void MX_TIM1_Init(void)
   * @param None
   * @retval None
   */
-static void MX_USART1_Init(void)
+static void MX_USART1_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART1_Init 0 */
@@ -372,16 +372,15 @@ static void MX_USART1_Init(void)
   /* USER CODE BEGIN USART1_Init 1 */
 
   /* USER CODE END USART1_Init 1 */
-  husart1.Instance = USART1;
-  husart1.Init.BaudRate = 115200;
-  husart1.Init.WordLength = USART_WORDLENGTH_8B;
-  husart1.Init.StopBits = USART_STOPBITS_1;
-  husart1.Init.Parity = USART_PARITY_NONE;
-  husart1.Init.Mode = USART_MODE_TX_RX;
-  husart1.Init.CLKPolarity = USART_POLARITY_LOW;
-  husart1.Init.CLKPhase = USART_PHASE_1EDGE;
-  husart1.Init.CLKLastBit = USART_LASTBIT_DISABLE;
-  if (HAL_USART_Init(&husart1) != HAL_OK)
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_HalfDuplex_Init(&huart1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -404,6 +403,9 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+  /* DMA2_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
 
 }
 
@@ -427,107 +429,74 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 void switch_block() {
-block_ready = pcm_current_block;
-pcm_current_block =
-		(pcm_current_block == pcm_output_block_ping) ?
-				pcm_output_block_pong : pcm_output_block_ping;
-output_cursor = &pcm_current_block[0];
-end_output_block = &pcm_current_block[FFT_SIZE - PCM_OUT_SIZE];
+	block_ready = pcm_current_block;
+	pcm_current_block =
+			(pcm_current_block == pcm_output_block_ping) ?
+					pcm_output_block_pong : pcm_output_block_ping;
+	output_cursor = &pcm_current_block[0];
+	end_output_block = &pcm_current_block[FFT_SIZE - PCM_OUT_SIZE];
 }
 
 void deinterleave(uint16_t *mixed, uint16_t Length) {
 
-for (uint16_t i = 0; i < Length; i += 2) {
-	pcm_deinterleaved[i / 2] = mixed[i];
+	for (uint16_t i = 0; i < Length; i += 2) {
+		pcm_deinterleaved[i / 2] = mixed[i];
 
-}
-pcm_full = 0x0;
-block_ready = true;
+	}
+	pcm_full = 0x0;
+	block_ready = true;
 }
 
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 
-PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
-memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;  //* sizeof(uint16_t);
+	PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
+	memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;  //* sizeof(uint16_t);
 
-if (next_cursor <= end_output_block) {
-	output_cursor = next_cursor;
-} else {
-	switch_block();
-	pcm_full = pcm_current_block;
-}
+	if (next_cursor <= end_output_block) {
+		output_cursor = next_cursor;
+	} else {
+		switch_block();
+		pcm_full = pcm_current_block;
+	}
 
-wTransferState = TRANSFER_COMPLETE;
+	wTransferState = TRANSFER_COMPLETE;
 }
 
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 
-PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
-memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE; // * sizeof(uint16_t);
+	PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
+	memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE; // * sizeof(uint16_t);
 
-if (next_cursor <= end_output_block) {
-	output_cursor = next_cursor;
-} else {
-	switch_block();
-	pcm_full = pcm_current_block;
+	if (next_cursor <= end_output_block) {
+		output_cursor = next_cursor;
+	} else {
+		switch_block();
+		pcm_full = pcm_current_block;
+	}
+
+	wTransferState = TRANSFER_HALF;
 }
 
-wTransferState = TRANSFER_HALF;
-}
+uint32_t usart_send_function(uint8_t *data_ptr, uint32_t data_size) {
 
-uint32_t usart_send_function(uint8_t *data_ptr, uint32_t data_size)
-{
- /* int32_t bytesLeft = data_size;
-  while(bytesLeft > 0)
-  {
-    while(((USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData)->TxState != 0);
-    if(bytesLeft - MAX_SEND_PACKET_SIZE <= 0)
-    {
-      USBD_CDC_SetTxBuffer(&hUsbDeviceFS, (uint8_t*)data_ptr+(data_size - bytesLeft), bytesLeft);
-      bytesLeft = 0;
-    }
-    else
-    {
-      USBD_CDC_SetTxBuffer(&hUsbDeviceFS, (uint8_t*)data_ptr+(data_size - bytesLeft), MAX_SEND_PACKET_SIZE);
-      bytesLeft = bytesLeft - MAX_SEND_PACKET_SIZE;
-    }
-
-    if(USBD_CDC_TransmitPacket(&hUsbDeviceFS) != USBD_OK)
-    {
-      while(1);
-    }
-
-    while(((USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData)->TxState != 0);
-    USBD_CDC_SetTxBuffer(&hUsbDeviceFS, (uint8_t*)data_ptr, 0);
-    if(USBD_CDC_TransmitPacket(&hUsbDeviceFS) != USBD_OK)
-    {
-      while(1);
-    }
-    HAL_Delay(1);
-  }
-  return data_size; // Ok all data have been sent*/
-}
-
-void pack_data(ai_logging_packet_t * p)
-{
-
-      p->message = "Accelero";
-      p->message_size = strlen(p->message);
-   //   p->payload = (uint8_t*)&acc_axes;
-    //  p->payload_size = sizeof(acc_axes);
-   //   ai_logging_create_shape_1d(* shape, 3);
-      p->payload_type = AI_INT32;
-      p->timestamp = HAL_GetTick();
-      ai_logging_send_packet(&device, p);
+	HAL_UART_Transmit_DMA(&huart1 ,data_ptr, data_size);
 
 }
 
+void pack_data(ai_logging_packet_t *p) {
 
+	p->message = "fft_bins";
+	p->message_size = strlen(p->message);
+	p->payload = (uint8_t*) &fft_output;
+	p->payload_size = sizeof(fft_output);
+	ai_logging_create_shape_1d(&p->shape, 3);
+	p->payload_type = AI_INT16;
+	p->timestamp = HAL_GetTick();
+	ai_logging_send_packet(&device, p);
 
-
-
+}
 
 /* USER CODE END 4 */
 
@@ -538,10 +507,10 @@ void pack_data(ai_logging_packet_t * p)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-/* User can add his own implementation to report the HAL error return state */
-__disable_irq();
-while (1) {
-}
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
