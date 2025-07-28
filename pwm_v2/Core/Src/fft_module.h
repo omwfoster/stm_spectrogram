@@ -8,10 +8,12 @@
 #ifndef SRC_FFT_MODULE_H_
 #define SRC_FFT_MODULE_H_
 
-#define FFT_SIZE 512
+#define FFT_SIZE		128
 
 #include "stdint.h"
-void fft_test(uint16_t * sample_block);
+#include "tone.h"
+void fft_test(int16_t * sample_block);
+void fft_test_440_sample();
 
 
 
