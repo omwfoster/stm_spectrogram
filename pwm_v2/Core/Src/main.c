@@ -197,17 +197,16 @@ int main(void) {
 		}
 
 		if (block_ready != 0x0) {
-//
 
-			fft_test_440_sample();
-//			fft_test(pcm_deinterleaved);
+
+//			fft_test_440_sample();
+			fft_test(pcm_deinterleaved);
 			pack_data_fft(&packet);
 			block_ready = 0x0;
 		}
 
-//		fft_test_440_sample();
-//		pack_data_fft(&packet);
 
+		HAL_Delay(15);
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
