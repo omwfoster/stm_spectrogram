@@ -59,8 +59,8 @@ extern uint16_t pcm_output_block_ping[FFT_SIZE * 2]; // pcm data is transmitted 
 extern uint16_t pcm_output_block_pong[FFT_SIZE * 2];
 
 q15_t fft_output[FFT_SIZE * 2]; //has to be twice FFT size
+q15_t mag_bins_output[FFT_SIZE];
 q15_t mag_bins[FFT_SIZE];
-
 extern uint16_t *pcm_current_block;
 bool block_ready = false;
 uint16_t *output_cursor = pcm_output_block_ping;
@@ -74,7 +74,7 @@ union U_Pdm {
 		uint8_t first_half[INTERNAL_BUFF_SIZE / 2];
 		uint8_t last_half[INTERNAL_BUFF_SIZE / 2];
 	};
-	uint8_t PDM_In[INTERNAL_BUFF_SIZE / 2];
+	uint8_t PDM_In[INTERNAL_BUFF_SIZE];
 } t_U_Pdm;
 
 uint16_t PDM_Out[16];
@@ -163,12 +163,13 @@ int main(void) {
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
 	MX_DMA_Init();
-	MX_TIM1_Init();
+//	MX_TIM1_Init();
 	MX_SPI1_Init();
 	MX_CRC_Init();
 	MX_PDM2PCM_Init();
 	MX_USART2_UART_Init();
 	/* USER CODE BEGIN 2 */
+	window_init();
 
 	ai_logging_init(&device);
 	ai_logging_init_send(&device, usart_send_function, send_buffer,
@@ -199,14 +200,14 @@ int main(void) {
 		if (block_ready != 0x0) {
 
 
-//			fft_test_440_sample();
-			fft_test(pcm_deinterleaved);
+	//		fft_test_440_sample();
+			fft_test((audio_sample_t *)pcm_deinterleaved);
 			pack_data_fft(&packet);
 			block_ready = 0x0;
 		}
 
 
-		HAL_Delay(15);
+		HAL_Delay(2);
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
@@ -305,7 +306,7 @@ static void MX_SPI1_Init(void) {
 	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
 	hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
 	hspi1.Init.NSS = SPI_NSS_SOFT;
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
 	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
 	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
 	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -523,7 +524,7 @@ void pack_data_fft(ai_logging_packet_t *p) {
 
 	p->message = "fft_bins";
 	p->message_size = strlen(p->message);
-	p->payload = (uint8_t*) &mag_bins;
+	p->payload = (uint8_t*) &mag_bins_output;
 	p->payload_size = FFT_SIZE;
 	ai_logging_create_shape_1d(&p->shape, FFT_SIZE);
 	p->payload_type = AI_INT16;

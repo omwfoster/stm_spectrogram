@@ -12,8 +12,11 @@
 
 #include "stdint.h"
 #include "tone.h"
+#include "arm_math.h"
 void fft_test(int16_t * sample_block);
 void fft_test_440_sample();
+void convert_char(const audio_sample_t * s_16,q15_t * pcm, uint16_t num);
+void window_init();
 
 
 
