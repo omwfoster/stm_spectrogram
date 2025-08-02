@@ -74,9 +74,9 @@ void fft_test(int16_t *sample_block) {
 			0/*forward FFT*/, 1/*output bit order is normal*/);
 	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
-	arm_scale_q15(mag_bins,(q15_t)26132 , 0 , mag_bins_new , FFT_SIZE);
+	arm_scale_q15(mag_bins,(q15_t)21558 , 0 , mag_bins_new , FFT_SIZE);
 	arm_add_q15(mag_bins_new , mag_bins_previous , mag_bins_output , FFT_SIZE);
-	arm_scale_q15(mag_bins,(q15_t)6533 , 0 , mag_bins_previous , FFT_SIZE);
+	arm_scale_q15(mag_bins,(q15_t)10813 , 0 , mag_bins_previous , FFT_SIZE);
 
 
 

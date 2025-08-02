@@ -203,11 +203,13 @@ int main(void) {
 	//		fft_test_440_sample();
 			fft_test((audio_sample_t *)pcm_deinterleaved);
 			pack_data_fft(&packet);
+
 			block_ready = 0x0;
 		}
+		HAL_Delay(5);
 
 
-		HAL_Delay(2);
+
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
