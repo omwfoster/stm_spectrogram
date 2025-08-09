@@ -56,9 +56,22 @@ void apply_window_q15(const q15_t *pcm_samples, q15_t *windowed_samples,
 	arm_mult_q15(pcm_samples, window, windowed_samples, size);
 }
 
-void dynamic_range(const audio_sample_t *s_16, q15_t *pcm, uint16_t num)
-{
+void convert_magnitude_to_db_q15(q15_t *mag_input, q15_t *db_output, uint16_t length) {
+    for(int i = 0; i < length; i++) {
+        if(mag_input[i] > 0) {
+            float32_t db_float = 20.0f * log10f((float32_t)mag_input[i]) - 90.31f;
 
+            // Clamp to reasonable dB range (-120 to +6 dB)
+            if(db_float < -120.0f) db_float = -120.0f;
+            if(db_float > 6.0f) db_float = 6.0f;
+
+            // Convert back to Q15 (scale dB range to Q15)
+            // Map -120dB to -32768, +6dB to +32767
+            db_output[i] = (q15_t)((db_float + 120.0f) * 32767.0f / 126.0f - 32768);
+        } else {
+            db_output[i] = -32768;  // Minimum Q15 value for zero magnitude
+        }
+    }
 }
 
 
@@ -68,8 +81,9 @@ void fft_test(int16_t *sample_block) {
 
 	arm_status status;
 
-	convert_char(sample_block, pcm_samples, (FFT_SIZE * 2));
-	apply_window_q15(pcm_samples, windowed_samples_q15, hann_window, FFT_SIZE);
+	//convert_char(sample_block, pcm_samples, (FFT_SIZE * 2));
+
+	apply_window_q15(sample_block, windowed_samples_q15, hann_window, FFT_SIZE);
 	status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
 			0/*forward FFT*/, 1/*output bit order is normal*/);
 	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
@@ -77,6 +91,8 @@ void fft_test(int16_t *sample_block) {
 	arm_scale_q15(mag_bins,(q15_t)21558 , 0 , mag_bins_new , FFT_SIZE);
 	arm_add_q15(mag_bins_new , mag_bins_previous , mag_bins_output , FFT_SIZE);
 	arm_scale_q15(mag_bins,(q15_t)10813 , 0 , mag_bins_previous , FFT_SIZE);
+
+
 
 
 
@@ -95,14 +111,15 @@ void convert_char(const audio_sample_t *s_16, q15_t *pcm, uint16_t num) {
 void fft_test_440_sample() {
 	static arm_rfft_instance_q15 fft_instance;
 
-	convert_char(test_440, pcm_samples, (FFT_SIZE * 2));
+	convert_char(test2k, pcm_samples, (FFT_SIZE * 2));
 	arm_status status;
 
 	apply_window_q15(pcm_samples, windowed_samples_q15, hann_window, FFT_SIZE);
 
 	status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
 			0/*forward FFT*/, 1/*output bit order is normal*/);
-	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
+//	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output); // window function not working
+	arm_rfft_q15(&fft_instance, (q15_t*) pcm_samples, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins_output, FFT_SIZE);
 
 }

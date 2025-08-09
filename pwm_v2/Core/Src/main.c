@@ -31,8 +31,17 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+#define PDM_BUFFER_SIZE    (FFT_SIZE * 2)  // Ping-pong buffer for DMA
+#define PCM_BUFFER_SIZE    FFT_SIZE         // Output PCM samples
+#define PCM_OUT_SIZE            16
+uint16_t RecBuf[PCM_OUT_SIZE];
 
-#define SEND_BUFFER_MAX_SIZE 1024
+
+        // Adjust based on needs
+
+uint16_t PDM_Buffer[PDM_BUFFER_SIZE];
+
+#define SEND_BUFFER_MAX_SIZE 2048
 
 enum {
 	TRANSFER_WAIT, TRANSFER_COMPLETE, TRANSFER_HALF, TRANSFER_ERROR
@@ -40,26 +49,26 @@ enum {
 
 #define REC_FREQ                          8000
 
-/* PDM buffer input size */
-#define INTERNAL_BUFF_SIZE      128
+
 
 /* PCM buffer output size */
-#define PCM_OUT_SIZE            16
+
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-uint16_t RecBuf[PCM_OUT_SIZE];
+
 
 /* Temporary data sample */
-//static uint16_t InternalBuffer[INTERNAL_BUFF_SIZE];
-extern uint16_t pcm_output_block_ping[FFT_SIZE * 2]; // pcm data is transmitted as stereo ( empty data interleaved , so 2 * required number of samples)
-extern uint16_t pcm_output_block_pong[FFT_SIZE * 2];
+
+extern uint16_t pcm_output_block_ping[FFT_SIZE]; // pcm data is transmitted as stereo ( empty data interleaved , so 2 * required number of samples)
+extern uint16_t pcm_output_block_pong[FFT_SIZE];
 
 q15_t fft_output[FFT_SIZE * 2]; //has to be twice FFT size
 q15_t mag_bins_output[FFT_SIZE];
+q15_t db_bins_output[FFT_SIZE];
 q15_t mag_bins[FFT_SIZE];
 extern uint16_t *pcm_current_block;
 bool block_ready = false;
@@ -69,12 +78,14 @@ static uint16_t *end_output_block = &pcm_output_block_ping[(FFT_SIZE * 2)
 uint16_t pcm_deinterleaved[FFT_SIZE];
 uint16_t *pcm_full = 0;
 
+extern PDM_Filter_Handler_t PDM1_filter_handler;
+
 union U_Pdm {
 	struct {
-		uint8_t first_half[INTERNAL_BUFF_SIZE / 2];
-		uint8_t last_half[INTERNAL_BUFF_SIZE / 2];
+		uint8_t first_half[PDM_BUFFER_SIZE / 2];
+		uint8_t last_half[PDM_BUFFER_SIZE / 2];
 	};
-	uint8_t PDM_In[INTERNAL_BUFF_SIZE];
+	uint8_t PDM_In[PDM_BUFFER_SIZE];
 } t_U_Pdm;
 
 uint16_t PDM_Out[16];
@@ -174,7 +185,7 @@ int main(void) {
 	ai_logging_init(&device);
 	ai_logging_init_send(&device, usart_send_function, send_buffer,
 	SEND_BUFFER_MAX_SIZE);
-	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &t_U_Pdm, INTERNAL_BUFF_SIZE);
+	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &t_U_Pdm, PDM_BUFFER_SIZE);
 
 	ai_logging_packet_t packet;
 	packet.timestamp = -1;
@@ -186,27 +197,23 @@ int main(void) {
 	while (1) {
 		ai_logging_clear_packet(&packet);
 
-		if (wTransferState != TRANSFER_WAIT )
+		if (wTransferState != TRANSFER_WAIT | TRANSFER_ERROR )
 		{
 			process_pdm();
 		}
 
 
 		if (pcm_full != 0x0) {
-			deinterleave(pcm_full, FFT_SIZE * 2);
 
-		}
-
-		if (block_ready != 0x0) {
-
-
-	//		fft_test_440_sample();
-			fft_test((audio_sample_t *)pcm_deinterleaved);
+			fft_test((audio_sample_t *)pcm_full);
 			pack_data_fft(&packet);
-
 			block_ready = 0x0;
+			pcm_full = 0x0;
+		//	HAL_Delay(2);
+
+
 		}
-		HAL_Delay(5);
+
 
 
 
@@ -300,16 +307,19 @@ static void MX_SPI1_Init(void) {
 	/* USER CODE BEGIN SPI1_Init 1 */
 
 	/* USER CODE END SPI1_Init 1 */
+
+
+
 	/* SPI1 parameter configuration*/
 	hspi1.Instance = SPI1;
 	hspi1.Init.Mode = SPI_MODE_MASTER;
 	hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
 	hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
 	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-	hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
 	hspi1.Init.NSS = SPI_NSS_SOFT;
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
-	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+	hspi1.Init.FirstBit = SPI_FIRSTBIT_LSB;
 	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
 	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
 	hspi1.Init.CRCPolynomial = 15;
@@ -435,7 +445,7 @@ void switch_block() {
 			(pcm_current_block == pcm_output_block_ping) ?
 					pcm_output_block_pong : pcm_output_block_ping;
 	output_cursor = &pcm_current_block[0];
-	end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_OUT_SIZE];
+	end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_BUFFER_SIZE];
 }
 
 void deinterleave(int16_t *mixed, int16_t Length) {
@@ -449,46 +459,36 @@ void deinterleave(int16_t *mixed, int16_t Length) {
 }
 
 void process_pdm() {
+    uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
 
-	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE; //* sizeof(uint16_t);
+    if (wTransferState == TRANSFER_COMPLETE) {
+        if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
+            PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
+            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+            output_cursor = next_cursor;
+        } else {
+            pcm_full = pcm_current_block;
+            switch_block();
+            PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
+            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+            output_cursor += PCM_OUT_SIZE;  // Update cursor after block switch
+        }
+    }
+    else if (wTransferState == TRANSFER_HALF) {
+        if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
+            PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
+            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+            output_cursor = next_cursor;
+        } else {
+            pcm_full = pcm_current_block;
+            switch_block();
+            PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
+            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+            output_cursor += PCM_OUT_SIZE;  // Update cursor after block switch
+        }
+    }
 
-	if (wTransferState == TRANSFER_COMPLETE) {
-
-		if (next_cursor <= end_output_block) {
-
-			output_cursor = next_cursor;
-			PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-
-		} else {
-
-			pcm_full = pcm_current_block;
-			switch_block();
-			PDM_Filter(t_U_Pdm.last_half, &RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-
-		}
-	}
-
-	else if (wTransferState == TRANSFER_HALF) {
-
-		if (next_cursor <= end_output_block) {
-
-			output_cursor = next_cursor;
-			PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-
-		} else {
-
-			pcm_full = pcm_current_block;
-			switch_block();
-			PDM_Filter(t_U_Pdm.first_half, &RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-		}
-
-	}
-	wTransferState == TRANSFER_WAIT;
-
+    wTransferState = TRANSFER_WAIT;  // Fixed: assignment instead of comparison
 }
 
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {

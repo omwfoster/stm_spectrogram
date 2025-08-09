@@ -32,6 +32,17 @@
 /* USER CODE BEGIN 0 */
 /* USER CODE END 0 */
 
+#define AUDIO_IN_CHANNELS 2
+#define AUDIO_IN_SAMPLING_FREQUENCY 8000
+
+#define AUDIO_IN_BUFFER_SIZE            DEFAULT_AUDIO_IN_BUFFER_SIZE
+#define AUDIO_VOLUME_INPUT              64U
+
+
+
+#define MAX_DECIMATION_FACTOR 160
+
+
 /* Global variables ---------------------------------------------------------*/
 extern PDM_Filter_Handler_t PDM1_filter_handler;
 extern PDM_Filter_Config_t PDM1_filter_config;
