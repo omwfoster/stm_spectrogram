@@ -27,7 +27,7 @@ extern "C" {
 
 /* Exported defines ----------------------------------------------------------*/
 
-#define DECIMATION_FACTOR_80
+#define DECIMATION_FACTOR_128
 
 // Define values based on selected decimation factor
 #ifdef DECIMATION_FACTOR_16
