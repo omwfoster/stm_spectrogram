@@ -26,12 +26,13 @@
 #include "fft_module.h"
 #include "ai_logging.h"
 #include "arm_math.h"
+#include "eq_spi.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define PDM_BUFFER_SIZE    (FFT_SIZE * 2 *2)  // Ping-pong buffer for DMA 2 buffers for 2*8 bit values
+#define PDM_BUFFER_SIZE    (64 * 2 *2)  // Ping-pong buffer for DMA 2 buffers for 2*8 bit values
 #define PCM_BUFFER_SIZE    FFT_SIZE         // Output PCM samples
 #define PCM_OUT_SIZE            16
 uint16_t RecBuf[PCM_OUT_SIZE];
@@ -123,7 +124,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_SPI1_Init(void);
 static void MX_CRC_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
@@ -295,44 +295,6 @@ static void MX_CRC_Init(void) {
 
 }
 
-/**
- * @brief SPI1 Initialization Function
- * @param None
- * @retval None
- */
-static void MX_SPI1_Init(void) {
-
-	/* USER CODE BEGIN SPI1_Init 0 */
-
-	/* USER CODE END SPI1_Init 0 */
-
-	/* USER CODE BEGIN SPI1_Init 1 */
-
-	/* USER CODE END SPI1_Init 1 */
-
-
-
-	/* SPI1 parameter configuration*/
-	hspi1.Instance = SPI1;
-	hspi1.Init.Mode = SPI_MODE_MASTER;
-	hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
-	hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
-	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-	hspi1.Init.NSS = SPI_NSS_SOFT;
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
-	hspi1.Init.FirstBit = SPI_FIRSTBIT_LSB;
-	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-	hspi1.Init.CRCPolynomial = 15;
-	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-		Error_Handler();
-	}
-	/* USER CODE BEGIN SPI1_Init 2 */
-
-	/* USER CODE END SPI1_Init 2 */
-
-}
 
 /**
  * @brief TIM1 Initialization Function
