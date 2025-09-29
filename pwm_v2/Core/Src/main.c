@@ -31,7 +31,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define PDM_BUFFER_SIZE    (FFT_SIZE * 2)  // Ping-pong buffer for DMA
+#define PDM_BUFFER_SIZE    (FFT_SIZE * 2 *2)  // Ping-pong buffer for DMA 2 buffers for 2*8 bit values
 #define PCM_BUFFER_SIZE    FFT_SIZE         // Output PCM samples
 #define PCM_OUT_SIZE            16
 uint16_t RecBuf[PCM_OUT_SIZE];
@@ -65,6 +65,7 @@ enum {
 
 extern uint16_t pcm_output_block_ping[FFT_SIZE]; // pcm data is transmitted as stereo ( empty data interleaved , so 2 * required number of samples)
 extern uint16_t pcm_output_block_pong[FFT_SIZE];
+extern int16_t  pcm_q15[FFT_SIZE];
 
 q15_t fft_output[FFT_SIZE * 2]; //has to be twice FFT size
 q15_t mag_bins_output[FFT_SIZE];
@@ -76,13 +77,13 @@ uint16_t *output_cursor = pcm_output_block_ping;
 static uint16_t *end_output_block = &pcm_output_block_ping[(FFT_SIZE * 2)
 		- PCM_OUT_SIZE];
 uint16_t pcm_deinterleaved[FFT_SIZE];
-uint16_t *pcm_full = 0;
+volatile uint16_t *pcm_full = 0;
 
 extern PDM_Filter_Handler_t PDM1_filter_handler;
 
 union U_Pdm {
 	struct {
-		uint8_t first_half[PDM_BUFFER_SIZE / 2];
+		uint8_t first_half[PDM_BUFFER_SIZE /2];
 		uint8_t last_half[PDM_BUFFER_SIZE / 2];
 	};
 	uint8_t PDM_In[PDM_BUFFER_SIZE];
@@ -205,7 +206,8 @@ int main(void) {
 
 		if (pcm_full != 0x0) {
 
-			fft_test((audio_sample_t *)pcm_full);
+		//	fft_test(pcm_full);
+			fft_test_dc_removal(pcm_full);
 			pack_data_fft(&packet);
 			block_ready = 0x0;
 			pcm_full = 0x0;

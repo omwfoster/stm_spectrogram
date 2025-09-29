@@ -7,10 +7,12 @@
 
 #include "fft_module.h"
 #include <arm_math.h>
+#include "stdbool.h"
 
 uint16_t pcm_output_block_ping[FFT_SIZE * 2];
 uint16_t pcm_output_block_pong[FFT_SIZE * 2];
 uint16_t *pcm_current_block = pcm_output_block_ping;
+int16_t  pcm_q15[FFT_SIZE];
 
 extern q15_t fft_output[]; // FFT_SIZE * 2
 q15_t abs_output[FFT_SIZE*2];
@@ -36,6 +38,13 @@ void generate_hann_window_q15(q15_t *window, uint16_t size) {
 		float w = 0.5f * (1.0f - cosf(2.0f * 3.14159265f * i / (size - 1)));
 		window[i] = (q15_t) (w * 32767.0f + 0.5f);
 	}
+}
+
+void convert_pcm_for_fft(uint16_t *pcm_data, int16_t *fft_input, uint32_t length) {
+    for(uint32_t i = 0; i < length; i++) {
+        // Convert unsigned to signed (subtract DC offset)
+        fft_input[i] = (int16_t)(pcm_data[i] - 32768);
+    }
 }
 
 void window_init() {
@@ -76,26 +85,112 @@ void convert_magnitude_to_db_q15(q15_t *mag_input, q15_t *db_output, uint16_t le
 
 
 
-void fft_test(int16_t *sample_block) {
+void fft_test_raw(int16_t *sample_block) {
 	static arm_rfft_instance_q15 fft_instance;
+	static bool fft_initialized = false;
+	static q15_t temp_previous[FFT_SIZE];
+
+	q15_t dc_value;
+
 
 	arm_status status;
 
+
+    status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
+
+    if (!fft_initialized) {
+        status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
+        if (status != ARM_MATH_SUCCESS) {
+            return;
+        }
+        fft_initialized = true;
+        memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
+    }
+
+    convert_pcm_for_fft(sample_block, pcm_q15, FFT_SIZE);
+    // Get DC component for normalization
+    dc_value = mag_bins[0];
+
+
+
 	//convert_char(sample_block, pcm_samples, (FFT_SIZE * 2));
 
-	apply_window_q15(sample_block, windowed_samples_q15, hann_window, FFT_SIZE);
-	status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
-			0/*forward FFT*/, 1/*output bit order is normal*/);
+	apply_window_q15(pcm_q15, windowed_samples_q15, hann_window, FFT_SIZE);
 	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
-	arm_scale_q15(mag_bins,(q15_t)21558 , 0 , mag_bins_new , FFT_SIZE);
-	arm_add_q15(mag_bins_new , mag_bins_previous , mag_bins_output , FFT_SIZE);
-	arm_scale_q15(mag_bins,(q15_t)10813 , 0 , mag_bins_previous , FFT_SIZE);
+
+    // Safe DC normalization with clamping
+    for(int i = 0; i < FFT_SIZE; i++) {
+        if(mag_bins[i] >= dc_value) {
+            mag_bins[i] -= dc_value;
+            mag_bins_new[i] = (mag_bins[i] < 0) ? 0 : (q15_t)mag_bins[i];
+        } else {
+            mag_bins[i] = 0;  // Clamp to zero if result would be negative
+        }
+    }
+
+    arm_scale_q15(mag_bins, (q15_t)10922, 0, mag_bins_new, FFT_SIZE);
+    arm_scale_q15(mag_bins_previous, (q15_t)21845, 0, temp_previous, FFT_SIZE);
+    arm_add_q15(mag_bins_new, temp_previous, mag_bins_output, FFT_SIZE);
+
+    memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 
 
 
 
 
+
+}
+
+
+
+
+void fft_test_dc_removal(int16_t *sample_block) {
+    static arm_rfft_instance_q15 fft_instance;
+    static bool fft_initialized = false;
+    static q15_t temp_previous[FFT_SIZE];
+
+    arm_status status;
+    q15_t dc_value;
+
+    // Initialize FFT instance only once
+    if (!fft_initialized) {
+        status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
+        if (status != ARM_MATH_SUCCESS) {
+            return;
+        }
+        fft_initialized = true;
+        memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
+    }
+
+
+    // Apply window and perform FFT
+    apply_window_q15(sample_block, windowed_samples_q15, hann_window, FFT_SIZE);
+    arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
+    arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
+
+    // Get DC component for normalization
+    dc_value = mag_bins[0];
+
+    // Safe DC normalization with clamping
+  /*  for(int i = 0; i < FFT_SIZE; i++) {
+        if(mag_bins[i] >= dc_value) {
+            mag_bins[i] -= dc_value;
+            mag_bins_new[i] = (mag_bins[i] < 0) ? 0 : (q15_t)mag_bins[i];
+        } else {
+            mag_bins[i] = 0;  // Clamp to zero if result would be negative
+        }
+    }
+
+	*/
+
+    // Exponential averaging
+    arm_scale_q15(mag_bins, (q15_t)10922, 0, mag_bins_new, FFT_SIZE);
+    arm_scale_q15(mag_bins_previous, (q15_t)21845, 0, temp_previous, FFT_SIZE);
+    arm_add_q15(mag_bins_new, temp_previous, mag_bins_output, FFT_SIZE);
+
+    // Update previous
+    memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 }
 
 void convert_char(const audio_sample_t *s_16, q15_t *pcm, uint16_t num) {

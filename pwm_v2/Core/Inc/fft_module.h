@@ -8,12 +8,13 @@
 #ifndef SRC_FFT_MODULE_H_
 #define SRC_FFT_MODULE_H_
 
-#define FFT_SIZE		256
+#define FFT_SIZE		128
 
 #include "stdint.h"
 #include "tone.h"
 #include "arm_math.h"
-void fft_test(int16_t * sample_block);
+void fft_test_raw(int16_t * sample_block);
+void fft_test_dc_removal(int16_t *sample_block);
 void fft_test_440_sample();
 void convert_char(const audio_sample_t * s_16,q15_t * pcm, uint16_t num);
 void convert_magnitude_to_db_q15(q15_t *mag_input, q15_t *db_output, uint16_t length);
