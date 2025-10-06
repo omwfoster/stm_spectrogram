@@ -8,6 +8,7 @@
 #include "fft_module.h"
 #include <arm_math.h>
 #include "stdbool.h"
+#include "window_functions_q15.h"
 
 uint16_t pcm_output_block_ping[FFT_SIZE * 2];
 uint16_t pcm_output_block_pong[FFT_SIZE * 2];
@@ -20,9 +21,10 @@ extern q15_t mag_bins[FFT_SIZE];
 extern q15_t mag_bins_output[FFT_SIZE];
 q15_t mag_bins_previous[FFT_SIZE] = { [0 ... FFT_SIZE-1] = (q15_t)6533 };
 q15_t mag_bins_new[FFT_SIZE];
+q15_t db_output[FFT_SIZE];
 
 q15_t windowed_samples_q15[FFT_SIZE];
-q15_t hann_window[FFT_SIZE];
+q15_t window[FFT_SIZE];
 
 q15_t pcm_samples[FFT_SIZE];
 
@@ -49,7 +51,8 @@ void convert_pcm_for_fft(uint16_t *pcm_data, int16_t *fft_input, uint32_t length
 
 void window_init() {
 
-	generate_hann_window_q15(hann_window, FFT_SIZE);
+	//generate_hann_window_q15(hann_window, FFT_SIZE);
+	hann_q15(window, FFT_SIZE, true );
 
 }
 
@@ -68,17 +71,20 @@ void apply_window_q15(const q15_t *pcm_samples, q15_t *windowed_samples,
 void convert_magnitude_to_db_q15(q15_t *mag_input, q15_t *db_output, uint16_t length) {
     for(int i = 0; i < length; i++) {
         if(mag_input[i] > 0) {
-            float32_t db_float = 20.0f * log10f((float32_t)mag_input[i]) - 90.31f;
+            // Convert Q15 magnitude to float (Q15 range is -32768 to 32767)
+            float32_t mag_float = (float32_t)mag_input[i] / 32768.0f;
 
-            // Clamp to reasonable dB range (-120 to +6 dB)
+            // Calculate dB (20*log10 for magnitude)
+            float32_t db_float = 20.0f * log10f(mag_float);
+
+            // Clamp to reasonable dB range
             if(db_float < -120.0f) db_float = -120.0f;
-            if(db_float > 6.0f) db_float = 6.0f;
+            if(db_float > 0.0f) db_float = 0.0f;  // 0 dB is max for normalized magnitude
 
-            // Convert back to Q15 (scale dB range to Q15)
-            // Map -120dB to -32768, +6dB to +32767
-            db_output[i] = (q15_t)((db_float + 120.0f) * 32767.0f / 126.0f - 32768);
+            // Map dB range to Q15: -120dB → -32768, 0dB → 32767
+            db_output[i] = (q15_t)((db_float + 120.0f) * 32767.0f / 120.0f - 32768.0f);
         } else {
-            db_output[i] = -32768;  // Minimum Q15 value for zero magnitude
+            db_output[i] = -32768;  // Minimum Q15 value (represents -120 dB or silence)
         }
     }
 }
@@ -115,7 +121,7 @@ void fft_test_raw(int16_t *sample_block) {
 
 	//convert_char(sample_block, pcm_samples, (FFT_SIZE * 2));
 
-	apply_window_q15(pcm_q15, windowed_samples_q15, hann_window, FFT_SIZE);
+	apply_window_q15(pcm_q15, windowed_samples_q15, window, FFT_SIZE);
 	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
 
@@ -145,7 +151,7 @@ void fft_test_raw(int16_t *sample_block) {
 
 
 
-void fft_test_dc_removal(int16_t *sample_block) {
+void fft_postprocess(int16_t *sample_block) {
     static arm_rfft_instance_q15 fft_instance;
     static bool fft_initialized = false;
     static q15_t temp_previous[FFT_SIZE];
@@ -165,24 +171,13 @@ void fft_test_dc_removal(int16_t *sample_block) {
 
 
     // Apply window and perform FFT
-    apply_window_q15(sample_block, windowed_samples_q15, hann_window, FFT_SIZE);
+    apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
 
-    // Get DC component for normalization
-    dc_value = mag_bins[0];
 
-    // Safe DC normalization with clamping
-  /*  for(int i = 0; i < FFT_SIZE; i++) {
-        if(mag_bins[i] >= dc_value) {
-            mag_bins[i] -= dc_value;
-            mag_bins_new[i] = (mag_bins[i] < 0) ? 0 : (q15_t)mag_bins[i];
-        } else {
-            mag_bins[i] = 0;  // Clamp to zero if result would be negative
-        }
-    }
 
-	*/
+
 
     // Exponential averaging
     arm_scale_q15(mag_bins, (q15_t)10922, 0, mag_bins_new, FFT_SIZE);
@@ -191,6 +186,85 @@ void fft_test_dc_removal(int16_t *sample_block) {
 
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
+}
+
+
+void fft_postprocess_adaptive(int16_t *sample_block) {
+    static arm_rfft_instance_q15 fft_instance;
+    static bool fft_initialized = false;
+    static q15_t temp_previous[FFT_SIZE];
+
+    arm_status status;
+    q15_t dc_value;
+
+    // Initialize FFT instance only once
+    if (!fft_initialized) {
+        status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
+        if (status != ARM_MATH_SUCCESS) {
+            return;
+        }
+        fft_initialized = true;
+        memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
+    }
+
+
+
+
+    // Apply window and perform FFT
+    apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
+    arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
+    arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
+    dc_norm(mag_bins,FFT_SIZE);
+    adaptive_averaging(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
+    // Update previous
+    memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
+
+ //   dc_norm(mag_bins,FFT_SIZE);
+    //convert_magnitude_to_db_q15(mag_bins_output, mag_bins_output, FFT_SIZE);
+
+
+
+
+}
+
+
+void fft_postprocess_adaptive_db(int16_t *sample_block) {
+    static arm_rfft_instance_q15 fft_instance;
+    static bool fft_initialized = false;
+    static q15_t temp_previous[FFT_SIZE];
+
+    arm_status status;
+    q15_t dc_value;
+
+    // Initialize FFT instance only once
+    if (!fft_initialized) {
+        status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
+        if (status != ARM_MATH_SUCCESS) {
+            return;
+        }
+        fft_initialized = true;
+        memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
+    }
+
+
+
+
+    // Apply window and perform FFT
+    apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
+    arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
+    arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
+    dc_norm(mag_bins,FFT_SIZE);
+    convert_magnitude_to_db_q15(mag_bins_output, mag_bins, FFT_SIZE);
+    adaptive_averaging_db(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
+    // Update previous
+    memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
+
+ //   dc_norm(mag_bins,FFT_SIZE);
+    //convert_magnitude_to_db_q15(mag_bins_output, mag_bins_output, FFT_SIZE);
+
+
+
+
 }
 
 void convert_char(const audio_sample_t *s_16, q15_t *pcm, uint16_t num) {
@@ -209,7 +283,7 @@ void fft_test_440_sample() {
 	convert_char(test2k, pcm_samples, (FFT_SIZE * 2));
 	arm_status status;
 
-	apply_window_q15(pcm_samples, windowed_samples_q15, hann_window, FFT_SIZE);
+	apply_window_q15(pcm_samples, windowed_samples_q15, window, FFT_SIZE);
 
 	status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
 			0/*forward FFT*/, 1/*output bit order is normal*/);
@@ -217,5 +291,122 @@ void fft_test_440_sample() {
 	arm_rfft_q15(&fft_instance, (q15_t*) pcm_samples, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins_output, FFT_SIZE);
 
+}
+void dc_norm(int16_t * mag_block,uint32_t length)
+{
+
+	q15_t dc_value = * mag_block;
+	q15_t MAG_TEMP;
+
+    // Safe DC normalization with clamping
+    for(int i = 0; i < length; i++) {
+        if(mag_block[i] >=  dc_value) {
+        	mag_block[i] -= dc_value;
+        	mag_block[i] = (mag_block[i] < 0) ? 1 : (q15_t)mag_bins[i];
+        } else {
+            mag_bins[i] = 1;  // Clamp to zero if result would be negative
+        }
+    }
+
+
+}
+
+q15_t calculate_threshold_fast(q15_t *mag_bins, uint32_t size) {
+    q15_t max_val, min_val;
+    uint32_t max_idx, min_idx;
+
+    // Find min and max
+    arm_max_q15(mag_bins, size, &max_val, &max_idx);
+    arm_min_q15(mag_bins, size, &min_val, &min_idx);
+
+    // Calculate mean
+    q15_t sum;
+    arm_mean_q15(mag_bins, size, &sum);
+    q15_t mean_val = (q15_t)sum;
+
+    // Threshold is between mean and max
+    // threshold = mean + 0.5 * (max - mean)
+    q15_t range = max_val - mean_val;
+    q15_t threshold = mean_val + (range >> 1);  // Add half the range
+
+    return threshold;
+}
+
+
+// Adjust averaging based on signal variance
+void adaptive_averaging(q15_t *current, q15_t *previous, q15_t *output, uint32_t size) {
+    // Calculate variance or energy
+
+	static q15_t threshold = 5000;  // Initial guess
+	threshold = calculate_threshold_fast(current, size);
+
+	q63_t energy;
+    arm_power_q15(current, size, &energy);
+
+    // Adjust alpha based on energy (faster response for high energy)
+    q15_t alpha = (energy > threshold) ? 16384 : 10922;  // 0.5 or 0.33
+    q15_t one_minus_alpha = 32767 - alpha;
+
+    static q15_t temp[FFT_SIZE];
+    arm_scale_q15(current, alpha, 0, temp, size);
+    arm_scale_q15(previous, one_minus_alpha, 0, output, size);
+    arm_add_q15(temp, output, output, size);
+}
+
+
+q15_t calculate_threshold_fast_db(q15_t *db_bins, uint32_t size) {
+    q15_t max_val, min_val;
+    uint32_t max_idx, min_idx;
+
+    // Find min and max dB values
+    arm_max_q15(db_bins, size, &max_val, &max_idx);
+    arm_min_q15(db_bins, size, &min_val, &min_idx);
+
+    // Calculate mean dB
+    q15_t mean_val;
+    arm_mean_q15(db_bins, size, &mean_val);
+
+    // Threshold is between mean and max
+    // threshold = mean + 0.6 * (max - mean)
+    // Higher multiplier for dB scale since dynamic range is compressed
+    q15_t range = max_val - mean_val;
+    q15_t threshold = mean_val + ((range * 19660) >> 15); // 0.6 in Q15
+
+    return threshold;
+}
+
+
+// Asymmetric alpha: fast attack, slow decay
+void adaptive_averaging_db(q15_t *current_db, q15_t *previous_db, q15_t *output_db, uint32_t size) {
+    static q15_t threshold = 0;
+    threshold = calculate_threshold_fast(current_db, size);
+
+    q15_t max_db;
+    uint32_t max_idx;
+    arm_max_q15(current_db, size, &max_db, &max_idx);
+
+    static q15_t temp[FFT_SIZE];
+
+    // Per-bin adaptive smoothing with asymmetric response
+    for(uint32_t i = 0; i < size; i++) {
+        q15_t diff = current_db[i] - previous_db[i];
+        q15_t alpha;
+
+        if(diff > 0) {
+            // Signal increasing: FAST attack (respond quickly to rises)
+            alpha = 26214; // 0.8 in Q15 - very fast
+        } else {
+            // Signal decreasing: SLOW decay (gradual fall-off)
+            alpha = 3277; // 0.1 in Q15 - slow release
+        }
+
+        q15_t one_minus_alpha = 32767 - alpha;
+
+        // output = alpha * current + (1-alpha) * previous
+        q15_t temp1, temp2;
+        temp1 = (q15_t)(((q31_t)current_db[i] * alpha) >> 15);
+        temp2 = (q15_t)(((q31_t)previous_db[i] * one_minus_alpha) >> 15);
+        output_db[i] = temp1 + temp2;
+    }
 }
 

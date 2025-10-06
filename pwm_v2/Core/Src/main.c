@@ -207,7 +207,7 @@ int main(void) {
 		if (pcm_full != 0x0) {
 
 		//	fft_test(pcm_full);
-			fft_test_dc_removal(pcm_full);
+			fft_postprocess_adaptive(pcm_full);
 			pack_data_fft(&packet);
 			block_ready = 0x0;
 			pcm_full = 0x0;
