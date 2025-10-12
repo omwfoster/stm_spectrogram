@@ -52,7 +52,7 @@ void convert_pcm_for_fft(uint16_t *pcm_data, int16_t *fft_input, uint32_t length
 void window_init() {
 
 	//generate_hann_window_q15(hann_window, FFT_SIZE);
-	hann_q15(window, FFT_SIZE, true );
+	hamming_q15(window, FFT_SIZE, true );
 
 }
 
@@ -254,13 +254,12 @@ void fft_postprocess_adaptive_db(int16_t *sample_block) {
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
     dc_norm(mag_bins,FFT_SIZE);
-    convert_magnitude_to_db_q15(mag_bins_output, mag_bins, FFT_SIZE);
-    adaptive_averaging_db(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
+    convert_magnitude_to_db_q15(mag_bins, db_output , FFT_SIZE);
+    adaptive_averaging_db(db_output, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 
- //   dc_norm(mag_bins,FFT_SIZE);
-    //convert_magnitude_to_db_q15(mag_bins_output, mag_bins_output, FFT_SIZE);
+
 
 
 

@@ -27,6 +27,7 @@
 #include "ai_logging.h"
 #include "arm_math.h"
 #include "eq_spi.h"
+#include "audio_stream.h"
 
 /* USER CODE END Includes */
 
@@ -183,20 +184,23 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	window_init();
 
-	ai_logging_init(&device);
-	ai_logging_init_send(&device, usart_send_function, send_buffer,
-	SEND_BUFFER_MAX_SIZE);
+	//ai_logging_init(&device);
+	//ai_logging_init_send(&device, usart_send_function, send_buffer,
+	//SEND_BUFFER_MAX_SIZE);
+
+	AudioStream_Init(&huart2);
+
 	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &t_U_Pdm, PDM_BUFFER_SIZE);
 
 	ai_logging_packet_t packet;
 	packet.timestamp = -1;
 
 	/* USER CODE END 2 */
-	ai_logging_clear_packet(&packet);
+
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
-		ai_logging_clear_packet(&packet);
+
 
 		if (wTransferState != TRANSFER_WAIT | TRANSFER_ERROR )
 		{

@@ -8,7 +8,7 @@
 #ifndef SRC_FFT_MODULE_H_
 #define SRC_FFT_MODULE_H_
 
-#define FFT_SIZE	128
+#define FFT_SIZE	512
 
 #include "stdint.h"
 #include "tone.h"
