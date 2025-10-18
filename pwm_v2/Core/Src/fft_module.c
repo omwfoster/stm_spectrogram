@@ -49,7 +49,7 @@ void convert_pcm_for_fft(uint16_t *pcm_data, int16_t *fft_input, uint32_t length
     }
 }
 
-void window_init() {
+void FFT_Window_Init() {
 
 	//generate_hann_window_q15(hann_window, FFT_SIZE);
 	hamming_q15(window, FFT_SIZE, true );
@@ -189,7 +189,7 @@ void fft_postprocess(int16_t *sample_block) {
 }
 
 
-void fft_postprocess_adaptive(int16_t *sample_block) {
+void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
     static arm_rfft_instance_q15 fft_instance;
     static bool fft_initialized = false;
     static q15_t temp_previous[FFT_SIZE];
@@ -211,11 +211,12 @@ void fft_postprocess_adaptive(int16_t *sample_block) {
 
 
     // Apply window and perform FFT
-    apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
+    apply_window_q15(sample_block, (q15_t *)windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
     dc_norm(mag_bins,FFT_SIZE);
-    adaptive_averaging(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
+
+    FFT_Adaptive_Averaging(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 
@@ -255,7 +256,7 @@ void fft_postprocess_adaptive_db(int16_t *sample_block) {
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
     dc_norm(mag_bins,FFT_SIZE);
     convert_magnitude_to_db_q15(mag_bins, db_output , FFT_SIZE);
-    adaptive_averaging_db(db_output, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
+    FFT_Adaptive_Averaging_DB(db_output, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 
@@ -333,7 +334,7 @@ q15_t calculate_threshold_fast(q15_t *mag_bins, uint32_t size) {
 
 
 // Adjust averaging based on signal variance
-void adaptive_averaging(q15_t *current, q15_t *previous, q15_t *output, uint32_t size) {
+void FFT_Adaptive_Averaging(q15_t *current, q15_t *previous, q15_t *output, uint32_t size) {
     // Calculate variance or energy
 
 	static q15_t threshold = 5000;  // Initial guess
@@ -376,7 +377,7 @@ q15_t calculate_threshold_fast_db(q15_t *db_bins, uint32_t size) {
 
 
 // Asymmetric alpha: fast attack, slow decay
-void adaptive_averaging_db(q15_t *current_db, q15_t *previous_db, q15_t *output_db, uint32_t size) {
+void FFT_Adaptive_Averaging_DB(q15_t *current_db, q15_t *previous_db, q15_t *output_db, uint32_t size) {
     static q15_t threshold = 0;
     threshold = calculate_threshold_fast(current_db, size);
 
