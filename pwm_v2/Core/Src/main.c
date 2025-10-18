@@ -18,16 +18,13 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include <audio_stream_fft.h>
+#include <audio_stream_PDM.h>
+#include <audio_stream_spi.h>
 #include "main.h"
-#include "pdm2pcm.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
 #include "stdbool.h"
-#include "fft_module.h"
 #include "ai_logging.h"
 #include "arm_math.h"
-#include "eq_spi.h"
 #include "audio_stream.h"
 //#include "device_commands.h"
 /* USER CODE END Includes */

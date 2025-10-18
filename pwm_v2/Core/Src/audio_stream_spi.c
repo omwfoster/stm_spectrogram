@@ -5,8 +5,8 @@
  *      Author: oliverfoster
  */
 
+#include <audio_stream_spi.h>
 #include "stm32f4xx_hal.h"
-#include "eq_spi.h"
 #include "arm_math.h"
 
 

@@ -19,7 +19,7 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include "pdm2pcm.h"
+#include <audio_stream_PDM.h>
 
 /* USER CODE BEGIN 0 */
 /* USER CODE END 0 */

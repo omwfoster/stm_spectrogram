@@ -2,8 +2,8 @@
 // window_functions_q15.c
 ////////////////////////
 
+#include <audio_stream_window.h>
 #include "arm_math.h"
-#include "window_functions_q15.h"
 
 // Q15 representation of pi: π ≈ 3.14159 → 32767 * (π/π) won't work
 // Instead, we'll use angle representation where 32767 = π radians

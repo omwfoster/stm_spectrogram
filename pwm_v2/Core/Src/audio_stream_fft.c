@@ -5,10 +5,10 @@
  *      Author: oliverfoster
  */
 
-#include "fft_module.h"
 #include <arm_math.h>
+#include <audio_stream_fft.h>
+#include <audio_stream_window.h>
 #include "stdbool.h"
-#include "window_functions_q15.h"
 
 uint16_t pcm_output_block_ping[FFT_SIZE * 2];
 uint16_t pcm_output_block_pong[FFT_SIZE * 2];
