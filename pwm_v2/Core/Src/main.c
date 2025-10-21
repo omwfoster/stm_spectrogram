@@ -18,14 +18,14 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include <audio_stream_fft.h>
-#include <audio_stream_PDM.h>
-#include <audio_stream_spi.h>
 #include "main.h"
 #include "stdbool.h"
 #include "ai_logging.h"
 #include "arm_math.h"
-#include "audio_stream.h"
+#include <audio_stream_dsp/audio_stream.h>
+#include <audio_stream_dsp/audio_stream_fft.h>
+#include <audio_stream_dsp/audio_stream_PDM.h>
+#include <audio_stream_dsp/audio_stream_spi.h>
 //#include "device_commands.h"
 /* USER CODE END Includes */
 
@@ -41,19 +41,16 @@
 
 // Transfer states
 typedef enum {
-    TRANSFER_WAIT = 0,
-    TRANSFER_COMPLETE,
-    TRANSFER_HALF,
-    TRANSFER_ERROR
+	TRANSFER_WAIT = 0, TRANSFER_COMPLETE, TRANSFER_HALF, TRANSFER_ERROR
 } transfer_state_t;
 
 // PDM buffer union for half/full access
 typedef union {
-    struct {
-        uint8_t first_half[PDM_BUFFER_SIZE / 2];
-        uint8_t last_half[PDM_BUFFER_SIZE / 2];
-    };
-    uint8_t PDM_In[PDM_BUFFER_SIZE];
+	struct {
+		uint8_t first_half[PDM_BUFFER_SIZE / 2];
+		uint8_t last_half[PDM_BUFFER_SIZE / 2];
+	};
+	uint8_t PDM_In[PDM_BUFFER_SIZE];
 } pdm_buffer_t;
 
 /* USER CODE END PTD */
@@ -83,6 +80,7 @@ extern uint16_t pcm_output_block_pong[FFT_SIZE];
 extern int16_t pcm_q15[FFT_SIZE];
 extern uint16_t *pcm_current_block;
 extern PDM_Filter_Handler_t PDM1_filter_handler;
+extern AudioStreamStatus_t stream_status;
 
 // Local audio processing buffers
 q15_t fft_output[FFT_SIZE * 2];        // Complex FFT output
@@ -143,100 +141,103 @@ static void Audio_Deinterleave(int16_t *mixed, int16_t length);
  * @retval int
  */
 int main(void) {
-    /* USER CODE BEGIN 1 */
+	/* USER CODE BEGIN 1 */
 
-    /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-    /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-    /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-    HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-    /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-    /* USER CODE END Init */
+	/* USER CODE END Init */
 
-    /* Configure the system clock */
-    SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-    /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-    /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-    /* Initialize all configured peripherals */
-    MX_GPIO_Init();
-    MX_DMA_Init();
-    // MX_TIM1_Init();
-    MX_SPI1_Init();
-    MX_CRC_Init();
-    MX_PDM2PCM_Init();
-    MX_USART2_UART_Init();
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	// MX_TIM1_Init();
+	MX_SPI1_Init();
+	MX_CRC_Init();
+	MX_PDM2PCM_Init();
+	MX_USART2_UART_Init();
 
-    /* USER CODE BEGIN 2 */
+	/* USER CODE BEGIN 2 */
 
-    // Initialize FFT windowing
-    FFT_Window_Init();
+	// Initialize FFT windowing
+	FFT_Window_Init();
 
-    // Initialize audio streaming
-    AudioStream_Init(&huart2);
+	// Initialize audio streaming
+	AudioStream_Init(&huart2);
 
-    // Initialize buffer pointers
-    output_cursor = pcm_output_block_ping;
-    end_output_block = &pcm_output_block_ping[(FFT_SIZE * 2) - PCM_OUT_SIZE];
+	// Initialize buffer pointers
+	output_cursor = pcm_output_block_ping;
+	end_output_block = &pcm_output_block_ping[(FFT_SIZE * 2) - PCM_OUT_SIZE];
 
-    // Start PDM reception via SPI DMA
-    HAL_SPI_Receive_DMA(&hspi1, (uint8_t*)&pdm_buffer, PDM_BUFFER_SIZE);
+	// Start PDM reception via SPI DMA
+	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer, PDM_BUFFER_SIZE);
 
-    /* USER CODE END 2 */
+	/* USER CODE END 2 */
 
-    /* Infinite loop */
-    /* USER CODE BEGIN WHILE */
-    while (1) {
-        // Check for incoming commands from PC
-        AudioStream_Task();
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
+	while (1) {
+		// Check for incoming commands from PC
+		AudioStream_Task();
 
-        // Process PDM data when available
-        if (transfer_state != TRANSFER_WAIT && transfer_state != TRANSFER_ERROR) {
-            Audio_Process_PDM();
-        }
+		// Process PDM data when available
+		if (transfer_state != TRANSFER_WAIT
+				&& transfer_state != TRANSFER_ERROR) {
+			Audio_Process_PDM();
+		}
 
-        // Process full PCM block with FFT
-        if (pcm_full != NULL) {
-            // Perform FFT with adaptive averaging
-            FFT_Postprocess_Adaptive((volatile int16_t*)pcm_full);
+		// Process full PCM block with FFT
+		if (pcm_full != NULL) {
+			// Perform FFT with adaptive averaging
+			FFT_Postprocess_Adaptive((volatile int16_t*) pcm_full);
 
-            // Send data based on current streaming mode
-            stream_mode_t mode = AudioStream_GetMode();
+			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
-            switch (mode) {
-                case STREAM_MODE_RAW:
-                    AudioStream_SendRawSamples((q15_t*)pcm_full, FFT_SIZE);
-                    break;
 
-                case STREAM_MODE_FFT:
-                    AudioStream_SendFFTData(mag_bins_output, FFT_SIZE / 2);
-                    break;
 
-                case STREAM_MODE_FFT_DB:
-                    AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
-                    break;
+				switch (stream_status.mode) {
+				case STREAM_MODE_RAW:
+					AudioStream_SendRawSamples((q15_t*) pcm_full, FFT_SIZE);
+					break;
 
-                case STREAM_MODE_IDLE:
-                default:
-                    // Do nothing
-                    break;
-            }
+				case STREAM_MODE_FFT:
+					AudioStream_SendFFTData(mag_bins_output, FFT_SIZE / 2);
+					break;
 
-            // Clear flags
-            block_ready = false;
-            pcm_full = NULL;
-        }
+				case STREAM_MODE_FFT_DB:
+					AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
+					break;
 
-        /* USER CODE END WHILE */
+				case STREAM_MODE_IDLE:
+				default:
+					// Do nothing
+					break;
+				}
+				block_ready = false;
+			}
+			// Clear flags
 
-        /* USER CODE BEGIN 3 */
-    }
-    /* USER CODE END 3 */
+			pcm_full = NULL;
+		}
+
+		/* USER CODE END WHILE */
+
+		/* USER CODE BEGIN 3 */
+	}
+	/* USER CODE END 3 */
 }
 
 /**
@@ -244,41 +245,41 @@ int main(void) {
  * @retval None
  */
 void SystemClock_Config(void) {
-    RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
-    RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
 
-    /** Configure the main internal regulator output voltage */
-    __HAL_RCC_PWR_CLK_ENABLE();
-    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+	/** Configure the main internal regulator output voltage */
+	__HAL_RCC_PWR_CLK_ENABLE();
+	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    /** Initializes the RCC Oscillators according to the specified parameters
-     * in the RCC_OscInitTypeDef structure.
-     */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-    RCC_OscInitStruct.PLL.PLLM = 8;
-    RCC_OscInitStruct.PLL.PLLN = 96;
-    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-    RCC_OscInitStruct.PLL.PLLQ = 4;
-    RCC_OscInitStruct.PLL.PLLR = 2;
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-        Error_Handler();
-    }
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+	RCC_OscInitStruct.PLL.PLLM = 8;
+	RCC_OscInitStruct.PLL.PLLN = 96;
+	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+	RCC_OscInitStruct.PLL.PLLQ = 4;
+	RCC_OscInitStruct.PLL.PLLR = 2;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
 
-    /** Initializes the CPU, AHB and APB buses clocks */
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-            | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+	/** Initializes the CPU, AHB and APB buses clocks */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK) {
-        Error_Handler();
-    }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK) {
+		Error_Handler();
+	}
 }
 
 /**
@@ -287,20 +288,20 @@ void SystemClock_Config(void) {
  * @retval None
  */
 static void MX_CRC_Init(void) {
-    /* USER CODE BEGIN CRC_Init 0 */
-    /* USER CODE END CRC_Init 0 */
+	/* USER CODE BEGIN CRC_Init 0 */
+	/* USER CODE END CRC_Init 0 */
 
-    /* USER CODE BEGIN CRC_Init 1 */
-    /* USER CODE END CRC_Init 1 */
+	/* USER CODE BEGIN CRC_Init 1 */
+	/* USER CODE END CRC_Init 1 */
 
-    hcrc.Instance = CRC;
-    if (HAL_CRC_Init(&hcrc) != HAL_OK) {
-        Error_Handler();
-    }
-    __HAL_CRC_DR_RESET(&hcrc);
+	hcrc.Instance = CRC;
+	if (HAL_CRC_Init(&hcrc) != HAL_OK) {
+		Error_Handler();
+	}
+	__HAL_CRC_DR_RESET(&hcrc);
 
-    /* USER CODE BEGIN CRC_Init 2 */
-    /* USER CODE END CRC_Init 2 */
+	/* USER CODE BEGIN CRC_Init 2 */
+	/* USER CODE END CRC_Init 2 */
 }
 
 /**
@@ -309,37 +310,38 @@ static void MX_CRC_Init(void) {
  * @retval None
  */
 static void MX_TIM1_Init(void) {
-    /* USER CODE BEGIN TIM1_Init 0 */
-    /* USER CODE END TIM1_Init 0 */
+	/* USER CODE BEGIN TIM1_Init 0 */
+	/* USER CODE END TIM1_Init 0 */
 
-    TIM_ClockConfigTypeDef sClockSourceConfig = { 0 };
-    TIM_MasterConfigTypeDef sMasterConfig = { 0 };
+	TIM_ClockConfigTypeDef sClockSourceConfig = { 0 };
+	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
 
-    /* USER CODE BEGIN TIM1_Init 1 */
-    /* USER CODE END TIM1_Init 1 */
+	/* USER CODE BEGIN TIM1_Init 1 */
+	/* USER CODE END TIM1_Init 1 */
 
-    htim1.Instance = TIM1;
-    htim1.Init.Prescaler = 1;
-    htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim1.Init.Period = 47;
-    htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-    htim1.Init.RepetitionCounter = 0;
-    htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-    if (HAL_TIM_Base_Init(&htim1) != HAL_OK) {
-        Error_Handler();
-    }
-    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-    if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK) {
-        Error_Handler();
-    }
-    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-    if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK) {
-        Error_Handler();
-    }
+	htim1.Instance = TIM1;
+	htim1.Init.Prescaler = 1;
+	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim1.Init.Period = 47;
+	htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+	htim1.Init.RepetitionCounter = 0;
+	htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(&htim1) != HAL_OK) {
+		Error_Handler();
+	}
+	sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+	if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK) {
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig)
+			!= HAL_OK) {
+		Error_Handler();
+	}
 
-    /* USER CODE BEGIN TIM1_Init 2 */
-    /* USER CODE END TIM1_Init 2 */
+	/* USER CODE BEGIN TIM1_Init 2 */
+	/* USER CODE END TIM1_Init 2 */
 }
 
 /**
@@ -348,39 +350,39 @@ static void MX_TIM1_Init(void) {
  * @retval None
  */
 static void MX_USART2_UART_Init(void) {
-    /* USER CODE BEGIN USART2_Init 0 */
-    /* USER CODE END USART2_Init 0 */
+	/* USER CODE BEGIN USART2_Init 0 */
+	/* USER CODE END USART2_Init 0 */
 
-    /* USER CODE BEGIN USART2_Init 1 */
-    /* USER CODE END USART2_Init 1 */
+	/* USER CODE BEGIN USART2_Init 1 */
+	/* USER CODE END USART2_Init 1 */
 
-    huart2.Instance = USART2;
-    huart2.Init.BaudRate = 115200;
-    huart2.Init.WordLength = UART_WORDLENGTH_8B;
-    huart2.Init.StopBits = UART_STOPBITS_1;
-    huart2.Init.Parity = UART_PARITY_NONE;
-    huart2.Init.Mode = UART_MODE_TX;
-    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-    if (HAL_UART_Init(&huart2) != HAL_OK) {
-        Error_Handler();
-    }
+	huart2.Instance = USART2;
+	huart2.Init.BaudRate = 115200;
+	huart2.Init.WordLength = UART_WORDLENGTH_8B;
+	huart2.Init.StopBits = UART_STOPBITS_1;
+	huart2.Init.Parity = UART_PARITY_NONE;
+	huart2.Init.Mode = UART_MODE_TX;
+	huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+	if (HAL_UART_Init(&huart2) != HAL_OK) {
+		Error_Handler();
+	}
 
-    /* USER CODE BEGIN USART2_Init 2 */
-    /* USER CODE END USART2_Init 2 */
+	/* USER CODE BEGIN USART2_Init 2 */
+	/* USER CODE END USART2_Init 2 */
 }
 
 /**
  * Enable DMA controller clock
  */
 static void MX_DMA_Init(void) {
-    /* DMA controller clock enable */
-    __HAL_RCC_DMA2_CLK_ENABLE();
+	/* DMA controller clock enable */
+	__HAL_RCC_DMA2_CLK_ENABLE();
 
-    /* DMA interrupt init */
-    /* DMA2_Stream0_IRQn interrupt configuration */
-    HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+	/* DMA interrupt init */
+	/* DMA2_Stream0_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 }
 
 /**
@@ -389,14 +391,14 @@ static void MX_DMA_Init(void) {
  * @retval None
  */
 static void MX_GPIO_Init(void) {
-    /* USER CODE BEGIN MX_GPIO_Init_1 */
-    /* USER CODE END MX_GPIO_Init_1 */
+	/* USER CODE BEGIN MX_GPIO_Init_1 */
+	/* USER CODE END MX_GPIO_Init_1 */
 
-    /* GPIO Ports Clock Enable */
-    __HAL_RCC_GPIOA_CLK_ENABLE();
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOA_CLK_ENABLE();
 
-    /* USER CODE BEGIN MX_GPIO_Init_2 */
-    /* USER CODE END MX_GPIO_Init_2 */
+	/* USER CODE BEGIN MX_GPIO_Init_2 */
+	/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -405,11 +407,12 @@ static void MX_GPIO_Init(void) {
  * @brief Switch between ping-pong PCM buffers
  */
 static void Audio_Switch_Block(void) {
-    block_ready = true;
-    pcm_current_block = (pcm_current_block == pcm_output_block_ping) ?
-                        pcm_output_block_pong : pcm_output_block_ping;
-    output_cursor = &pcm_current_block[0];
-    end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_OUT_SIZE];
+	block_ready = true;
+	pcm_current_block =
+			(pcm_current_block == pcm_output_block_ping) ?
+					pcm_output_block_pong : pcm_output_block_ping;
+	output_cursor = &pcm_current_block[0];
+	end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_OUT_SIZE];
 }
 
 /**
@@ -418,11 +421,11 @@ static void Audio_Switch_Block(void) {
  * @param length Length of mixed data
  */
 static void Audio_Deinterleave(int16_t *mixed, int16_t length) {
-    for (uint16_t i = 0; i < length; i += 2) {
-        pcm_deinterleaved[i / 2] = mixed[i];
-    }
-    pcm_full = NULL;
-    block_ready = true;
+	for (uint16_t i = 0; i < length; i += 2) {
+		pcm_deinterleaved[i / 2] = mixed[i];
+	}
+	pcm_full = NULL;
+	block_ready = true;
 }
 
 /**
@@ -430,40 +433,39 @@ static void Audio_Deinterleave(int16_t *mixed, int16_t length) {
  * Filters PDM to PCM and manages ping-pong buffers
  */
 static void Audio_Process_PDM(void) {
-    uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
+	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
 
-    if (transfer_state == TRANSFER_COMPLETE) {
-        if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
-            // Still room in current block
-            PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
-            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-            output_cursor = next_cursor;
-        } else {
-            // Block full, switch to next block
-            pcm_full = pcm_current_block;
-            Audio_Switch_Block();
-            PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
-            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-            output_cursor += PCM_OUT_SIZE;
-        }
-    }
-    else if (transfer_state == TRANSFER_HALF) {
-        if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
-            // Still room in current block
-            PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
-            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-            output_cursor = next_cursor;
-        } else {
-            // Block full, switch to next block
-            pcm_full = pcm_current_block;
-            Audio_Switch_Block();
-            PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
-            memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-            output_cursor += PCM_OUT_SIZE;
-        }
-    }
+	if (transfer_state == TRANSFER_COMPLETE) {
+		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
+			// Still room in current block
+			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor = next_cursor;
+		} else {
+			// Block full, switch to next block
+			pcm_full = pcm_current_block;
+			Audio_Switch_Block();
+			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor += PCM_OUT_SIZE;
+		}
+	} else if (transfer_state == TRANSFER_HALF) {
+		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
+			// Still room in current block
+			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor = next_cursor;
+		} else {
+			// Block full, switch to next block
+			pcm_full = pcm_current_block;
+			Audio_Switch_Block();
+			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor += PCM_OUT_SIZE;
+		}
+	}
 
-    transfer_state = TRANSFER_WAIT;
+	transfer_state = TRANSFER_WAIT;
 }
 
 /**
@@ -471,7 +473,7 @@ static void Audio_Process_PDM(void) {
  * @param hspi SPI handle
  */
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
-    transfer_state = TRANSFER_COMPLETE;
+	transfer_state = TRANSFER_COMPLETE;
 }
 
 /**
@@ -479,7 +481,7 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
  * @param hspi SPI handle
  */
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
-    transfer_state = TRANSFER_HALF;
+	transfer_state = TRANSFER_HALF;
 }
 
 /* USER CODE END 4 */
@@ -489,12 +491,12 @@ void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
  * @retval None
  */
 void Error_Handler(void) {
-    /* USER CODE BEGIN Error_Handler_Debug */
-    /* User can add his own implementation to report the HAL error return state */
-    __disable_irq();
-    while (1) {
-    }
-    /* USER CODE END Error_Handler_Debug */
+	/* USER CODE BEGIN Error_Handler_Debug */
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
+	/* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef USE_FULL_ASSERT

@@ -7,7 +7,7 @@
 
 
 // audio_streaming.c
-#include "audio_stream.h"
+#include "audio_stream_dsp/audio_stream.h"
 #include "ai_logging.h"
 #include "string.h"
 #include "stdio.h"
@@ -45,8 +45,8 @@ void AudioStream_Init(UART_HandleTypeDef *huart) {
     ai_logging_init_receive(&ai_device, NULL, 1, ai_receive_buffer, 0);
 
     // Initialize status
-    stream_status.mode = STREAM_MODE_IDLE;
-    stream_status.is_streaming = false;
+    stream_status.mode = STREAM_MODE_FFT;
+    stream_status.is_streaming = true;
     stream_status.sample_rate = 11718;
     stream_status.fft_size = 512;
     stream_status.packets_sent = 0;

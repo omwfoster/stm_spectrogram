@@ -6,8 +6,8 @@
  */
 
 #include <arm_math.h>
-#include <audio_stream_fft.h>
-#include <audio_stream_window.h>
+#include <audio_stream_dsp/audio_stream_fft.h>
+#include <audio_stream_dsp/audio_stream_window.h>
 #include "stdbool.h"
 
 uint16_t pcm_output_block_ping[FFT_SIZE * 2];
