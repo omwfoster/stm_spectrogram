@@ -91,7 +91,7 @@ void convert_magnitude_to_db_q15(q15_t *mag_input, q15_t *db_output, uint16_t le
 
 
 
-void fft_test_raw(int16_t *sample_block) {
+void FFT_Test_Raw(int16_t *sample_block) {
 	static arm_rfft_instance_q15 fft_instance;
 	static bool fft_initialized = false;
 	static q15_t temp_previous[FFT_SIZE];
@@ -151,7 +151,7 @@ void fft_test_raw(int16_t *sample_block) {
 
 
 
-void fft_postprocess(int16_t *sample_block) {
+void FFT_Postprocess(int16_t *sample_block) {
     static arm_rfft_instance_q15 fft_instance;
     static bool fft_initialized = false;
     static q15_t temp_previous[FFT_SIZE];
@@ -229,7 +229,7 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
 }
 
 
-void fft_postprocess_adaptive_db(int16_t *sample_block) {
+void FFT_Postprocess_Adaptive_db(int16_t *sample_block) {
     static arm_rfft_instance_q15 fft_instance;
     static bool fft_initialized = false;
     static q15_t temp_previous[FFT_SIZE];

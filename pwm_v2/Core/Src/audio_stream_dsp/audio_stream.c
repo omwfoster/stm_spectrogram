@@ -18,7 +18,7 @@ static ai_logging_device_t ai_device;
 AudioStreamStatus_t stream_status;
 
 // Buffers for AI Logging
-#define AI_SEND_BUFFER_SIZE 256
+#define AI_SEND_BUFFER_SIZE 1024
 #define AI_RECEIVE_BUFFER_SIZE 128
 static uint8_t ai_send_buffer[AI_SEND_BUFFER_SIZE];
 static uint8_t ai_receive_buffer[AI_RECEIVE_BUFFER_SIZE];
@@ -420,46 +420,3 @@ bool AudioStream_IsStreaming(void) {
 }
 
 
-/*
-void pack_data_raw(ai_logging_packet_t *p) {
-
-	p->message = "fft_bins";
-	p->message_size = strlen(p->message);
-	p->payload = (uint8_t*) &fft_output;
-	p->payload_size = sizeof(fft_output);
-	ai_logging_create_shape_1d(&p->shape, 512);
-	p->payload_type = AI_INT16;
-	p->timestamp = HAL_GetTick();
-	ai_logging_send_packet(&device, p);
-
-}
-
-void pack_data_fft(ai_logging_packet_t *p) {
-
-	p->message = "fft_bins";
-	p->message_size = strlen(p->message);
-	p->payload = (uint8_t*) &mag_bins_output;
-	p->payload_size = FFT_SIZE;
-	ai_logging_create_shape_1d(&p->shape, FFT_SIZE);
-	p->payload_type = AI_INT16;
-	p->timestamp = 0xFF;   //HAL_GetTick();
-	ai_logging_send_packet(&device, p);
-
-}
-
-void pack_data_test(ai_logging_packet_t *p) {
-
-	uint8_t *test_pack = "124816";
-	p->message = "HELLO WORLD";
-	p->message_size = strlen(p->message);
-	p->payload = test_pack;
-	p->payload_size = strlen(test_pack);
-	ai_logging_create_shape_1d(&p->shape, p->payload_size);
-	p->payload_type = AI_UINT8;
-	p->timestamp = 0xFF;  // HAL_GetTick();
-	ai_logging_send_packet(&device, p);
-	ai_logging_clear_packet(p);
-
-}
-
-*/

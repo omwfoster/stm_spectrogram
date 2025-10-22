@@ -57,7 +57,7 @@ void FFT_Process_Raw_Samples(int16_t *sample_block);
  *
  * @param sample_block Pointer to FFT output block
  */
-void FFT_Postprocess_Magnitude(int16_t *sample_block);
+void FFT_Postprocess(int16_t *sample_block);
 
 /**
  * @brief Post-process FFT with adaptive averaging
