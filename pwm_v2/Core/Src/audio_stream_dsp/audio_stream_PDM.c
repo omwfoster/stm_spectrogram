@@ -28,7 +28,7 @@
 PDM_Filter_Handler_t PDM1_filter_handler;
 PDM_Filter_Config_t PDM1_filter_config;
 
-SAMPLES_NUMBER = (uint16_t)((AUDIO_IN_SAMPLING_FREQUENCY / 1000U) * 1U);
+#define SAMPLES_NUMBER = (uint16_t)((AUDIO_IN_SAMPLING_FREQUENCY / 1000U) * 1U);
 
 
 /* USER CODE BEGIN 1 */
@@ -49,7 +49,7 @@ void MX_PDM2PCM_Init(void)
   PDM1_filter_handler.out_ptr_channels = 1;
   PDM_Filter_Init(&PDM1_filter_handler);
 
-  PDM1_filter_config.decimation_factor = PDM_FILTER_DEC_FACTOR_16;
+  PDM1_filter_config.decimation_factor = PDM_FILTER_DEC_FACTOR_128;
   PDM1_filter_config.output_samples_number = 16;
   PDM1_filter_config.mic_gain = 8;
   PDM_Filter_setConfig(&PDM1_filter_handler, &PDM1_filter_config);

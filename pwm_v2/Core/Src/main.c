@@ -44,6 +44,7 @@
 /* USER CODE BEGIN PTD */
 
 // Buffer size definitions
+
 #define PDM_BUFFER_SIZE         (64 * 2 * 2)  // Ping-pong buffer for DMA
 #define PCM_BUFFER_SIZE         FFT_SIZE      // Output PCM samples
 #define PCM_OUT_SIZE            16            // PDM filter output size

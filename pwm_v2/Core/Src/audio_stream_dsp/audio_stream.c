@@ -48,9 +48,9 @@ void AudioStream_Init(UART_HandleTypeDef *huart) {
     stream_status.mode = STREAM_MODE_FFT;
     stream_status.is_streaming = true;
     stream_status.sample_rate = 11718;
-    stream_status.fft_size = 512;
+    stream_status.fft_size = FFT_SIZE;
     stream_status.packets_sent = 0;
-    stream_status.decimation_factor = 16;
+    stream_status.decimation_factor = 128;
 
     // Send startup message using packet structure
     ai_logging_packet_t startup_packet;

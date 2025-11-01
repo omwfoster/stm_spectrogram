@@ -4,11 +4,12 @@
  *  Created on: Jun 10, 2025
  *      Author: oliverfoster
  */
-
+#include "stdbool.h"
 #include <arm_math.h>
+#include <audio_stream_dsp/audio_stream.h>
 #include <audio_stream_dsp/audio_stream_fft.h>
 #include <audio_stream_dsp/audio_stream_window.h>
-#include "stdbool.h"
+
 
 uint16_t pcm_output_block_ping[FFT_SIZE * 2];
 uint16_t pcm_output_block_pong[FFT_SIZE * 2];
@@ -63,7 +64,7 @@ void FFT_Window_Init() {
  * @param window: window coefficients in Q15 format
  * @param size: number of samples (FFT_SIZE)
  */
-void apply_window_q15(const q15_t *pcm_samples, q15_t *windowed_samples,
+void apply_window_q15(const q15_t *pcm_samples,q15_t *windowed_samples,
 		const q15_t *window, uint16_t size) {
 	arm_mult_q15(pcm_samples, window, windowed_samples, size);
 }
@@ -141,11 +142,6 @@ void FFT_Test_Raw(int16_t *sample_block) {
 
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 
-
-
-
-
-
 }
 
 
@@ -176,9 +172,6 @@ void FFT_Postprocess(int16_t *sample_block) {
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
 
 
-
-
-
     // Exponential averaging
     arm_scale_q15(mag_bins, (q15_t)10922, 0, mag_bins_new, FFT_SIZE);
     arm_scale_q15(mag_bins_previous, (q15_t)21845, 0, temp_previous, FFT_SIZE);
@@ -206,8 +199,6 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
         fft_initialized = true;
         memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
     }
-
-
 
 
     // Apply window and perform FFT
@@ -248,8 +239,6 @@ void FFT_Postprocess_Adaptive_db(int16_t *sample_block) {
     }
 
 
-
-
     // Apply window and perform FFT
     apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
@@ -259,11 +248,6 @@ void FFT_Postprocess_Adaptive_db(int16_t *sample_block) {
     FFT_Adaptive_Averaging_DB(db_output, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
-
-
-
-
-
 
 }
 
@@ -287,11 +271,12 @@ void fft_test_440_sample() {
 
 	status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
 			0/*forward FFT*/, 1/*output bit order is normal*/);
-//	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output); // window function not working
 	arm_rfft_q15(&fft_instance, (q15_t*) pcm_samples, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins_output, FFT_SIZE);
 
 }
+
+
 void dc_norm(int16_t * mag_block,uint32_t length)
 {
 

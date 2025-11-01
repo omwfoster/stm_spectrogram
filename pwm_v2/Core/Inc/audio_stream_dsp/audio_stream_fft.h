@@ -8,7 +8,7 @@
 #ifndef SRC_FFT_MODULE_H_
 #define SRC_FFT_MODULE_H_
 
-#define FFT_SIZE	512
+
 
 #include "stdint.h"
 #include <audio_stream_dsp/audio_stream_tone.h>
