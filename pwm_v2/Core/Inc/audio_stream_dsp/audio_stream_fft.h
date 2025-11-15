@@ -117,6 +117,11 @@ void FFT_Adaptive_Averaging(q15_t *current, q15_t *previous, q15_t *output, uint
  * @param output Pointer to output averaged data
  * @param size Number of bins to process
  */
+
+
+void FFT_Postprocess_Exponential(int16_t *sample_block);
+
+
 void FFT_Adaptive_Averaging_DB(q15_t *current, q15_t *previous, q15_t *output, uint32_t size);
 
 /**
@@ -131,8 +136,8 @@ void FFT_DC_Remove_And_Normalize(int16_t *mag_block, uint32_t length);
 void window_init();
 
 
-void apply_window_q15(const q15_t *pcm_samples, q15_t *windowed_samples,
-		const q15_t *window, uint16_t size);
+void apply_window_q15(q15_t *pcm_samples, q15_t *windowed_samples,
+		q15_t *window, uint16_t size);
 
 
 void dc_norm(int16_t * mag_block,uint32_t length);

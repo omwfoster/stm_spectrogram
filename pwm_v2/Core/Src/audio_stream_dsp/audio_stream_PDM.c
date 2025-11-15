@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include <audio_stream_dsp/audio_stream_PDM.h>
+#include <audio_stream_dsp/audio_stream.h>
 
 /* USER CODE BEGIN 0 */
 /* USER CODE END 0 */
@@ -29,6 +30,13 @@ PDM_Filter_Handler_t PDM1_filter_handler;
 PDM_Filter_Config_t PDM1_filter_config;
 
 #define SAMPLES_NUMBER = (uint16_t)((AUDIO_IN_SAMPLING_FREQUENCY / 1000U) * 1U);
+
+uint16_t PDM_Buffer[PDM_BUFFER_SIZE];
+pdm_buffer_t pdm_buffer;
+uint16_t RecBuf[PCM_OUT_SIZE];
+
+uint16_t pcm_output_block_ping[FFT_SIZE];
+uint16_t pcm_output_block_pong[FFT_SIZE];
 
 
 /* USER CODE BEGIN 1 */
@@ -59,27 +67,46 @@ void MX_PDM2PCM_Init(void)
 
 }
 
-/* USER CODE BEGIN 4 */
+/**
+ * @brief Process PDM data from DMA buffer
+ * Filters PDM to PCM and manages ping-pong buffers
+ */
+void Audio_Process_PDM(void) {
+	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
 
-/*  process function */
-uint8_t MX_PDM2PCM_Process(uint16_t *PDMBuf, uint16_t *PCMBuf)
-{
-  /*
-  uint8_t BSP_AUDIO_IN_PDMToPCM(uint16_t * PDMBuf, uint16_t * PCMBuf)
+	if (transfer_state == TRANSFER_COMPLETE) {
+		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
+			// Still room in current block
+			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor = next_cursor;
+		} else {
+			// Block full, switch to next block
+			pcm_full = pcm_current_block;
+			Audio_Switch_Block();
+			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor += PCM_OUT_SIZE;
+		}
+	} else if (transfer_state == TRANSFER_HALF) {
+		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
+			// Still room in current block
+			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor = next_cursor;
+		} else {
+			// Block full, switch to next block
+			pcm_full = pcm_current_block;
+			Audio_Switch_Block();
+			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			output_cursor += PCM_OUT_SIZE;
+		}
+	}
 
-  Converts audio format from PDM to PCM.
-  Parameters:
-    PDMBuf : Pointer to PDM buffer data
-    PCMBuf : Pointer to PCM buffer data
-  Return values:
-    AUDIO_OK in case of success, AUDIO_ERROR otherwise
-  */
-  /* this example return the default status AUDIO_ERROR */
-  return (uint8_t) 1;
+	transfer_state = TRANSFER_WAIT;
 }
 
-/* USER CODE END 4 */
 
-/**
-  * @}
-  */
+
+

@@ -28,40 +28,59 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "pdm2pcm_glo.h"
-
-/* USER CODE BEGIN 0 */
-/* USER CODE END 0 */
-
-#define AUDIO_IN_CHANNELS 2
-#define AUDIO_IN_SAMPLING_FREQUENCY 8000
-
-#define AUDIO_IN_BUFFER_SIZE            DEFAULT_AUDIO_IN_BUFFER_SIZE
-#define AUDIO_VOLUME_INPUT              64U
+#include "stdbool.h"
 
 
+#define MAX_DECIMATION_FACTOR 128
+#define PDM_BUFFER_SIZE         (64 * 2 * 2)  // Ping-pong buffer for DMA
+#define PCM_BUFFER_SIZE         FFT_SIZE      // Output PCM samples
+#define PCM_OUT_SIZE            16            // PDM filter output size
 
-#define MAX_DECIMATION_FACTOR 160
+  // Transfer states
+  typedef enum {
+  	TRANSFER_WAIT = 0, TRANSFER_COMPLETE, TRANSFER_HALF, TRANSFER_ERROR
+  } transfer_state_t;
+
+  // PDM buffer union for half/full access
+  typedef union {
+  	struct {
+  		uint8_t first_half[PDM_BUFFER_SIZE / 2];
+  		uint8_t last_half[PDM_BUFFER_SIZE / 2];
+  	};
+  	uint8_t PDM_In[PDM_BUFFER_SIZE];
+  } pdm_buffer_t;
+
+
+
+
 
 
 /* Global variables ---------------------------------------------------------*/
 extern PDM_Filter_Handler_t PDM1_filter_handler;
 extern PDM_Filter_Config_t PDM1_filter_config;
 
-/* USER CODE BEGIN 1 */
-/* USER CODE END 1 */
+// Buffer management
+extern uint16_t *output_cursor;
+extern uint16_t *end_output_block;
+extern volatile uint16_t *pcm_full;
+extern bool block_ready;
+extern volatile transfer_state_t transfer_state;
+extern uint16_t *pcm_current_block;
+
 
 /* PDM2PCM init function */
 void MX_PDM2PCM_Init(void);
+void Audio_Process_PDM(void);
+void Audio_Switch_Block(void);
 
 /* USER CODE BEGIN 2 */
 
 /* PDM2PCM process function */
 uint8_t MX_PDM2PCM_Process(uint16_t *PDMBuf, uint16_t *PCMBuf);
 
-/* USER CODE END 2 */
+void Audio_Process_PDM(void);
 
-/* USER CODE BEGIN 3 */
-/* USER CODE END 3 */
+
 
 #ifdef __cplusplus
 }

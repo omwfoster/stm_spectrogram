@@ -11,8 +11,8 @@
 #include <audio_stream_dsp/audio_stream_window.h>
 
 
-uint16_t pcm_output_block_ping[FFT_SIZE * 2];
-uint16_t pcm_output_block_pong[FFT_SIZE * 2];
+extern uint16_t pcm_output_block_ping[FFT_SIZE * 2];
+extern uint16_t pcm_output_block_pong[FFT_SIZE * 2];
 uint16_t *pcm_current_block = pcm_output_block_ping;
 int16_t  pcm_q15[FFT_SIZE];
 
@@ -64,8 +64,8 @@ void FFT_Window_Init() {
  * @param window: window coefficients in Q15 format
  * @param size: number of samples (FFT_SIZE)
  */
-void apply_window_q15(const q15_t *pcm_samples,q15_t *windowed_samples,
-		const q15_t *window, uint16_t size) {
+void apply_window_q15(q15_t *pcm_samples,q15_t *windowed_samples,
+		q15_t *window, uint16_t size) {
 	arm_mult_q15(pcm_samples, window, windowed_samples, size);
 }
 
@@ -120,7 +120,7 @@ void FFT_Test_Raw(int16_t *sample_block) {
 
 
 
-	//convert_char(sample_block, pcm_samples, (FFT_SIZE * 2));
+
 
 	apply_window_q15(pcm_q15, windowed_samples_q15, window, FFT_SIZE);
 	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
@@ -147,7 +147,7 @@ void FFT_Test_Raw(int16_t *sample_block) {
 
 
 
-void FFT_Postprocess(int16_t *sample_block) {
+void FFT_Postprocess_Exponential(int16_t *sample_block) {
     static arm_rfft_instance_q15 fft_instance;
     static bool fft_initialized = false;
     static q15_t temp_previous[FFT_SIZE];
@@ -202,17 +202,16 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
 
 
     // Apply window and perform FFT
-    apply_window_q15(sample_block, (q15_t *)windowed_samples_q15, window, FFT_SIZE);
+    apply_window_q15((q15_t *)sample_block, (q15_t *)windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
-    dc_norm(mag_bins,FFT_SIZE);
+
 
     FFT_Adaptive_Averaging(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 
- //   dc_norm(mag_bins,FFT_SIZE);
-    //convert_magnitude_to_db_q15(mag_bins_output, mag_bins_output, FFT_SIZE);
+
 
 
 
@@ -243,7 +242,6 @@ void FFT_Postprocess_Adaptive_db(int16_t *sample_block) {
     apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
     arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
-    dc_norm(mag_bins,FFT_SIZE);
     convert_magnitude_to_db_q15(mag_bins, db_output , FFT_SIZE);
     FFT_Adaptive_Averaging_DB(db_output, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
@@ -277,24 +275,7 @@ void fft_test_440_sample() {
 }
 
 
-void dc_norm(int16_t * mag_block,uint32_t length)
-{
 
-	q15_t dc_value = * mag_block;
-	q15_t MAG_TEMP;
-
-    // Safe DC normalization with clamping
-    for(int i = 0; i < length; i++) {
-        if(mag_block[i] >=  dc_value) {
-        	mag_block[i] -= dc_value;
-        	mag_block[i] = (mag_block[i] < 0) ? 1 : (q15_t)mag_bins[i];
-        } else {
-            mag_bins[i] = 1;  // Clamp to zero if result would be negative
-        }
-    }
-
-
-}
 
 q15_t calculate_threshold_fast(q15_t *mag_bins, uint32_t size) {
     q15_t max_val, min_val;

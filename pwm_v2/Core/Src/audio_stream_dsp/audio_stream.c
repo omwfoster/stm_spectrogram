@@ -8,6 +8,7 @@
 
 // audio_streaming.c
 #include "audio_stream_dsp/audio_stream.h"
+#include "audio_stream_dsp/audio_stream_PDM.h"
 #include "ai_logging.h"
 #include "string.h"
 #include "stdio.h"
@@ -22,6 +23,8 @@ AudioStreamStatus_t stream_status;
 #define AI_RECEIVE_BUFFER_SIZE 128
 static uint8_t ai_send_buffer[AI_SEND_BUFFER_SIZE];
 static uint8_t ai_receive_buffer[AI_RECEIVE_BUFFER_SIZE];
+
+
 
 // UART handle
 static UART_HandleTypeDef *uart_handle;
@@ -44,13 +47,14 @@ void AudioStream_Init(UART_HandleTypeDef *huart) {
     ai_logging_init_send(&ai_device, uart_send, ai_send_buffer, AI_SEND_BUFFER_SIZE);
     ai_logging_init_receive(&ai_device, NULL, 1, ai_receive_buffer, 0);
 
+
     // Initialize status
     stream_status.mode = STREAM_MODE_FFT;
     stream_status.is_streaming = true;
     stream_status.sample_rate = 11718;
     stream_status.fft_size = FFT_SIZE;
     stream_status.packets_sent = 0;
-    stream_status.decimation_factor = 128;
+    stream_status.decimation_factor = PDM1_filter_config.decimation_factor;
 
     // Send startup message using packet structure
     ai_logging_packet_t startup_packet;

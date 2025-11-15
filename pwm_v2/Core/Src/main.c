@@ -45,25 +45,11 @@
 
 // Buffer size definitions
 
-#define PDM_BUFFER_SIZE         (64 * 2 * 2)  // Ping-pong buffer for DMA
-#define PCM_BUFFER_SIZE         FFT_SIZE      // Output PCM samples
-#define PCM_OUT_SIZE            16            // PDM filter output size
+
 #define SEND_BUFFER_MAX_SIZE    2048          // AI Logging send buffer
 #define REC_FREQ                8000          // Recording frequency
 
-// Transfer states
-typedef enum {
-	TRANSFER_WAIT = 0, TRANSFER_COMPLETE, TRANSFER_HALF, TRANSFER_ERROR
-} transfer_state_t;
 
-// PDM buffer union for half/full access
-typedef union {
-	struct {
-		uint8_t first_half[PDM_BUFFER_SIZE / 2];
-		uint8_t last_half[PDM_BUFFER_SIZE / 2];
-	};
-	uint8_t PDM_In[PDM_BUFFER_SIZE];
-} pdm_buffer_t;
 
 /* USER CODE END PTD */
 
@@ -93,6 +79,7 @@ extern int16_t pcm_q15[FFT_SIZE];
 extern uint16_t *pcm_current_block;
 extern PDM_Filter_Handler_t PDM1_filter_handler;
 extern AudioStreamStatus_t stream_status;
+extern uint16_t PDM_Buffer[PDM_BUFFER_SIZE];
 
 // Local audio processing buffers
 q15_t fft_output[FFT_SIZE * 2];        // Complex FFT output
@@ -101,19 +88,19 @@ q15_t db_bins_output[FFT_SIZE];        // dB spectrum
 q15_t mag_bins[FFT_SIZE];              // Magnitude bins
 
 // PDM/PCM processing buffers
-static uint16_t RecBuf[PCM_OUT_SIZE];
-static uint16_t PDM_Buffer[PDM_BUFFER_SIZE];
+extern uint16_t RecBuf[PCM_OUT_SIZE];
+
 static uint16_t pcm_deinterleaved[FFT_SIZE];
-static pdm_buffer_t pdm_buffer;
+extern pdm_buffer_t pdm_buffer;
 
 // Buffer management
-static uint16_t *output_cursor = NULL;
-static uint16_t *end_output_block = NULL;
-static volatile uint16_t *pcm_full = NULL;
-static bool block_ready = false;
+uint16_t *output_cursor = NULL;
+uint16_t *end_output_block = NULL;
+volatile uint16_t *pcm_full = NULL;
+bool block_ready = false;
 
 // Transfer state
-static volatile transfer_state_t transfer_state = TRANSFER_WAIT;
+volatile transfer_state_t transfer_state = TRANSFER_WAIT;
 
 // AI Logging
 static ai_logging_device_t ai_device;
@@ -131,15 +118,8 @@ static void MX_USART2_UART_Init(void);
 
 /* USER CODE BEGIN PFP */
 
-// Audio processing functions
-static void Audio_Process_PDM(void);
-static void Audio_Switch_Block(void);
-static void Audio_Deinterleave(int16_t *mixed, int16_t length);
 
-// Packet functions (commented out originals)
-// void pack_data_test(ai_logging_packet_t *p);
-// void pack_data_raw(ai_logging_packet_t *p);
-// void pack_data_fft(ai_logging_packet_t *p);
+
 
 /* USER CODE END PFP */
 
@@ -214,7 +194,7 @@ int main(void) {
 		// Process full PCM block with FFT
 		if (pcm_full != NULL) {
 			// Perform FFT with adaptive averaging
-			FFT_Postprocess((int16_t*) pcm_full);
+			FFT_Postprocess_Adaptive((int16_t*) pcm_full);
 
 			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
@@ -418,7 +398,7 @@ static void MX_GPIO_Init(void) {
 /**
  * @brief Switch between ping-pong PCM buffers
  */
-static void Audio_Switch_Block(void) {
+void Audio_Switch_Block(void) {
 	block_ready = true;
 	pcm_current_block =
 			(pcm_current_block == pcm_output_block_ping) ?
@@ -427,58 +407,9 @@ static void Audio_Switch_Block(void) {
 	end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_OUT_SIZE];
 }
 
-/**
- * @brief Deinterleave stereo PCM data to mono
- * @param mixed Pointer to interleaved stereo data
- * @param length Length of mixed data
- */
-static void Audio_Deinterleave(int16_t *mixed, int16_t length) {
-	for (uint16_t i = 0; i < length; i += 2) {
-		pcm_deinterleaved[i / 2] = mixed[i];
-	}
-	pcm_full = NULL;
-	block_ready = true;
-}
 
-/**
- * @brief Process PDM data from DMA buffer
- * Filters PDM to PCM and manages ping-pong buffers
- */
-static void Audio_Process_PDM(void) {
-	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
 
-	if (transfer_state == TRANSFER_COMPLETE) {
-		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
-			// Still room in current block
-			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-			output_cursor = next_cursor;
-		} else {
-			// Block full, switch to next block
-			pcm_full = pcm_current_block;
-			Audio_Switch_Block();
-			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-			output_cursor += PCM_OUT_SIZE;
-		}
-	} else if (transfer_state == TRANSFER_HALF) {
-		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
-			// Still room in current block
-			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-			output_cursor = next_cursor;
-		} else {
-			// Block full, switch to next block
-			pcm_full = pcm_current_block;
-			Audio_Switch_Block();
-			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
-			output_cursor += PCM_OUT_SIZE;
-		}
-	}
 
-	transfer_state = TRANSFER_WAIT;
-}
 
 /**
  * @brief SPI RX Complete Callback
