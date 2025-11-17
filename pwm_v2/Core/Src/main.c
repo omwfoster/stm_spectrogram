@@ -73,13 +73,19 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 
 // Audio buffers (external dependencies from fft_module.c)
-extern uint16_t pcm_output_block_ping[FFT_SIZE];
-extern uint16_t pcm_output_block_pong[FFT_SIZE];
+extern int16_t pcm_output_block_ping[FFT_SIZE];
+extern int16_t pcm_output_block_pong[FFT_SIZE];
 extern int16_t pcm_q15[FFT_SIZE];
-extern uint16_t *pcm_current_block;
+extern int16_t *pcm_current_block;
 extern PDM_Filter_Handler_t PDM1_filter_handler;
 extern AudioStreamStatus_t stream_status;
-extern uint16_t PDM_Buffer[PDM_BUFFER_SIZE];
+//extern int16_t PDM_Buffer[PDM_BUFFER_SIZE];
+
+// Buffer management
+int16_t *output_cursor = NULL;
+int16_t *end_output_block = NULL;
+volatile int16_t *pcm_full = NULL;
+bool block_ready = false;
 
 // Local audio processing buffers
 q15_t fft_output[FFT_SIZE * 2];        // Complex FFT output
@@ -88,16 +94,12 @@ q15_t db_bins_output[FFT_SIZE];        // dB spectrum
 q15_t mag_bins[FFT_SIZE];              // Magnitude bins
 
 // PDM/PCM processing buffers
-extern uint16_t RecBuf[PCM_OUT_SIZE];
+extern int16_t RecBuf[PCM_OUT_SIZE];
 
 static uint16_t pcm_deinterleaved[FFT_SIZE];
 extern pdm_buffer_t pdm_buffer;
 
-// Buffer management
-uint16_t *output_cursor = NULL;
-uint16_t *end_output_block = NULL;
-volatile uint16_t *pcm_full = NULL;
-bool block_ready = false;
+
 
 // Transfer state
 volatile transfer_state_t transfer_state = TRANSFER_WAIT;
@@ -395,17 +397,7 @@ static void MX_GPIO_Init(void) {
 
 /* USER CODE BEGIN 4 */
 
-/**
- * @brief Switch between ping-pong PCM buffers
- */
-void Audio_Switch_Block(void) {
-	block_ready = true;
-	pcm_current_block =
-			(pcm_current_block == pcm_output_block_ping) ?
-					pcm_output_block_pong : pcm_output_block_ping;
-	output_cursor = &pcm_current_block[0];
-	end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_OUT_SIZE];
-}
+
 
 
 

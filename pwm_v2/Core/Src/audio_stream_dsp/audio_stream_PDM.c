@@ -31,12 +31,12 @@ PDM_Filter_Config_t PDM1_filter_config;
 
 #define SAMPLES_NUMBER = (uint16_t)((AUDIO_IN_SAMPLING_FREQUENCY / 1000U) * 1U);
 
-uint16_t PDM_Buffer[PDM_BUFFER_SIZE];
+//int16_t PDM_Buffer[PDM_BUFFER_SIZE];
 pdm_buffer_t pdm_buffer;
-uint16_t RecBuf[PCM_OUT_SIZE];
+int16_t RecBuf[PCM_OUT_SIZE];
 
-uint16_t pcm_output_block_ping[FFT_SIZE];
-uint16_t pcm_output_block_pong[FFT_SIZE];
+int16_t pcm_output_block_ping[FFT_SIZE];
+int16_t pcm_output_block_pong[FFT_SIZE];
 
 
 /* USER CODE BEGIN 1 */
@@ -57,9 +57,9 @@ void MX_PDM2PCM_Init(void)
   PDM1_filter_handler.out_ptr_channels = 1;
   PDM_Filter_Init(&PDM1_filter_handler);
 
-  PDM1_filter_config.decimation_factor = PDM_FILTER_DEC_FACTOR_128;
+  PDM1_filter_config.decimation_factor = PDM_FILTER_DEC_FACTOR_64;
   PDM1_filter_config.output_samples_number = 16;
-  PDM1_filter_config.mic_gain = 8;
+  PDM1_filter_config.mic_gain =12;
   PDM_Filter_setConfig(&PDM1_filter_handler, &PDM1_filter_config);
 
   /* USER CODE BEGIN 3 */
@@ -72,39 +72,51 @@ void MX_PDM2PCM_Init(void)
  * Filters PDM to PCM and manages ping-pong buffers
  */
 void Audio_Process_PDM(void) {
-	uint16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
+	int16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
 
 	if (transfer_state == TRANSFER_COMPLETE) {
 		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
 			// Still room in current block
-			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			PDM_Filter(pdm_buffer.last_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor = next_cursor;
 		} else {
 			// Block full, switch to next block
 			pcm_full = pcm_current_block;
 			Audio_Switch_Block();
-			PDM_Filter(pdm_buffer.last_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			PDM_Filter(pdm_buffer.last_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor += PCM_OUT_SIZE;
 		}
 	} else if (transfer_state == TRANSFER_HALF) {
 		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
 			// Still room in current block
-			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			PDM_Filter(pdm_buffer.first_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor = next_cursor;
 		} else {
 			// Block full, switch to next block
 			pcm_full = pcm_current_block;
 			Audio_Switch_Block();
-			PDM_Filter(pdm_buffer.first_half, RecBuf, &PDM1_filter_handler);
-			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(uint16_t));
+			PDM_Filter(pdm_buffer.first_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor += PCM_OUT_SIZE;
 		}
 	}
 
 	transfer_state = TRANSFER_WAIT;
+}
+
+/**
+ * @brief Switch between ping-pong PCM buffers
+ */
+void Audio_Switch_Block(void) {
+    block_ready = true;
+    pcm_current_block =
+            (pcm_current_block == pcm_output_block_ping) ?
+                    pcm_output_block_pong : pcm_output_block_ping;
+    output_cursor = &pcm_current_block[0];
+    end_output_block = &pcm_current_block[(FFT_SIZE * 2) - PCM_OUT_SIZE];
 }
 
 

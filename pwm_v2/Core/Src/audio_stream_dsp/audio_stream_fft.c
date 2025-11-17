@@ -11,14 +11,15 @@
 #include <audio_stream_dsp/audio_stream_window.h>
 
 
-extern uint16_t pcm_output_block_ping[FFT_SIZE * 2];
-extern uint16_t pcm_output_block_pong[FFT_SIZE * 2];
-uint16_t *pcm_current_block = pcm_output_block_ping;
+extern int16_t pcm_output_block_ping[FFT_SIZE * 2];
+extern int16_t pcm_output_block_pong[FFT_SIZE * 2];
+int16_t *pcm_current_block = pcm_output_block_ping;
 int16_t  pcm_q15[FFT_SIZE];
 
 extern q15_t fft_output[]; // FFT_SIZE * 2
 q15_t abs_output[FFT_SIZE*2];
 extern q15_t mag_bins[FFT_SIZE];
+q15_t mag_bins_intermediate[FFT_SIZE];
 extern q15_t mag_bins_output[FFT_SIZE];
 q15_t mag_bins_previous[FFT_SIZE] = { [0 ... FFT_SIZE-1] = (q15_t)6533 };
 q15_t mag_bins_new[FFT_SIZE];
@@ -87,6 +88,28 @@ void convert_magnitude_to_db_q15(q15_t *mag_input, q15_t *db_output, uint16_t le
         } else {
             db_output[i] = -32768;  // Minimum Q15 value (represents -120 dB or silence)
         }
+    }
+}
+
+// Before FFT, scale up your PCM samples to use full Q15 range
+void FFT_Preprocess(int16_t *pcm_samples) {
+    // Find peak value
+    q15_t max_val = 0;
+    for (int i = 0; i < FFT_SIZE; i++) {
+        q15_t abs_val = abs(pcm_samples[i]);
+        if (abs_val > max_val) max_val = abs_val;
+    }
+
+    // Calculate scaling factor (avoid division by zero)
+    if (max_val < 100) max_val = 100;  // Minimum threshold
+
+    // Scale factor to use most of Q15 range (leave headroom)
+    int32_t scale = (int32_t)(16384 * 32767) / max_val;  // Target 50% of range
+
+    // Apply scaling
+    for (int i = 0; i < FFT_SIZE; i++) {
+        int32_t scaled = ((int32_t)pcm_samples[i] * scale) >> 15;
+        pcm_samples[i] = (q15_t)__SSAT(scaled, 16);
     }
 }
 
@@ -166,6 +189,8 @@ void FFT_Postprocess_Exponential(int16_t *sample_block) {
     }
 
 
+
+
     // Apply window and perform FFT
     apply_window_q15(sample_block, windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
@@ -190,6 +215,8 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
     arm_status status;
     q15_t dc_value;
 
+
+
     // Initialize FFT instance only once
     if (!fft_initialized) {
         status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
@@ -201,13 +228,21 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
     }
 
 
+   // FFT_Preprocess(sample_block);
+
     // Apply window and perform FFT
     apply_window_q15((q15_t *)sample_block, (q15_t *)windowed_samples_q15, window, FFT_SIZE);
-    arm_rfft_q15(&fft_instance, (q15_t*)windowed_samples_q15, fft_output);
-    arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
+    arm_rfft_q15(&fft_instance, (q15_t*)sample_block, fft_output);
+    arm_cmplx_mag_q15(fft_output, mag_bins_intermediate, FFT_SIZE / 2);
 
 
-    FFT_Adaptive_Averaging(mag_bins, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
+    for (int i = 0; i < FFT_SIZE / 2; i++) {
+        int32_t scaled = (int32_t)mag_bins_output[i] << 1;  // Left shift = multiply by 2
+        mag_bins_output[i] = (int16_t)__SSAT(scaled, 16);   // Saturate to prevent overflow
+    }
+
+
+    FFT_Adaptive_Averaging(mag_bins_intermediate, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
 

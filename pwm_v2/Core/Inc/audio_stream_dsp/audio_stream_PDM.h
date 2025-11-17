@@ -60,12 +60,12 @@ extern PDM_Filter_Handler_t PDM1_filter_handler;
 extern PDM_Filter_Config_t PDM1_filter_config;
 
 // Buffer management
-extern uint16_t *output_cursor;
-extern uint16_t *end_output_block;
-extern volatile uint16_t *pcm_full;
+extern int16_t *output_cursor;
+extern int16_t *end_output_block;
+extern volatile int16_t *pcm_full;
 extern bool block_ready;
 extern volatile transfer_state_t transfer_state;
-extern uint16_t *pcm_current_block;
+extern int16_t *pcm_current_block;
 
 
 /* PDM2PCM init function */
