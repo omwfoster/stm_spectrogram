@@ -106,7 +106,7 @@ volatile transfer_state_t transfer_state = TRANSFER_WAIT;
 
 // AI Logging
 static ai_logging_device_t ai_device;
-static uint8_t send_buffer[SEND_BUFFER_MAX_SIZE];
+
 
 /* USER CODE END PV */
 
@@ -117,6 +117,7 @@ static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_CRC_Init(void);
 static void MX_USART2_UART_Init(void);
+static void HandleCommand(uint8_t);
 
 /* USER CODE BEGIN PFP */
 
@@ -179,13 +180,18 @@ int main(void) {
 	// Start PDM reception via SPI DMA
 	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer, PDM_BUFFER_SIZE);
 
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
-		// Check for incoming commands from PC
-		AudioStream_Task();
+
+		uint8_t cmd = AudioStream_ProcessCommand();
+		if(cmd!=0)
+		{
+		HandleCommand(cmd);
+		}
 
 		// Process PDM data when available
 		if (transfer_state != TRANSFER_WAIT
@@ -204,7 +210,7 @@ int main(void) {
 
 				switch (stream_status.mode) {
 				case STREAM_MODE_RAW:
-					AudioStream_SendRawSamples((q15_t*) pcm_full, FFT_SIZE);
+					AudioStream_SendRawSamples((q15_t*) pcm_full, FFT_SIZE/2);
 					break;
 
 				case STREAM_MODE_FFT:
@@ -212,12 +218,18 @@ int main(void) {
 					break;
 
 				case STREAM_MODE_FFT_DB:
-					AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
+//					AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
 					break;
 
 				case STREAM_MODE_IDLE:
+					break;
+
+
+
+
 				default:
-					// Do nothing
+					AudioStream_SendFFTData(mag_bins_output, FFT_SIZE / 2);
+
 					break;
 				}
 				block_ready = false;
@@ -233,6 +245,43 @@ int main(void) {
 	}
 	/* USER CODE END 3 */
 }
+
+
+static void HandleCommand(uint8_t cmd)
+{
+    switch(cmd)
+    {
+        case CMD_START_RAW_STREAM:
+            if (!stream_status.mode==STREAM_MODE_RAW) {
+            	stream_status.mode=STREAM_MODE_RAW;
+                // Enable raw audio streaming
+            };
+            break;
+
+        case CMD_SEND_SINGLE_RAW:
+            // Send single raw audio buffer
+            // Call your function to send one buffer
+        	AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
+        	break;
+
+        case CMD_START_FFT_STREAM:
+        	stream_status.mode=stream_status.mode=STREAM_MODE_FFT;;
+            break;
+
+
+        case CMD_SEND_SINGLE_FFT:
+            // Send single FFT result
+            // Call your function to compute and send one FFT
+        	AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
+        	break;
+
+
+        default:
+  //          return RESP_NACK;  // Unknown command
+
+    }
+}
+
 
 /**
  * @brief System Clock Configuration
@@ -355,12 +404,15 @@ static void MX_USART2_UART_Init(void) {
 	huart2.Init.WordLength = UART_WORDLENGTH_8B;
 	huart2.Init.StopBits = UART_STOPBITS_1;
 	huart2.Init.Parity = UART_PARITY_NONE;
-	huart2.Init.Mode = UART_MODE_TX;
+	huart2.Init.Mode = UART_MODE_TX_RX;
 	huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart2.Init.OverSampling = UART_OVERSAMPLING_16;
 	if (HAL_UART_Init(&huart2) != HAL_OK) {
 		Error_Handler();
 	}
+
+	HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);  // Highest priority
+	HAL_NVIC_EnableIRQ(USART2_IRQn);
 
 	/* USER CODE BEGIN USART2_Init 2 */
 	/* USER CODE END USART2_Init 2 */
@@ -396,6 +448,8 @@ static void MX_GPIO_Init(void) {
 }
 
 /* USER CODE BEGIN 4 */
+
+
 
 
 

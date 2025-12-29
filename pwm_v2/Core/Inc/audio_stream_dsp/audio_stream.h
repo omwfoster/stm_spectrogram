@@ -21,6 +21,7 @@ extern "C" {
 #define CMD_STOP_FFT_STREAM     0x21
 #define CMD_SEND_SINGLE_FFT     0x22
 #define CMD_GET_STATUS          0x50
+#define	CMD_START_FFT_DB_STREAM 0x51
 
 // Response codes to PC
 #define RESP_ACK                0x01
@@ -50,15 +51,15 @@ extern AudioStreamStatus_t stream_status;
 
 // Function prototypes
 void AudioStream_Init(UART_HandleTypeDef *huart);
-void AudioStream_ProcessCommand(void);
 void AudioStream_SendRawSamples(q15_t *samples, uint16_t num_samples);
 void AudioStream_SendFFTData(q15_t *fft_magnitude, uint16_t fft_size);
 void AudioStream_SendFFTDataDB(q15_t *fft_magnitude_db, uint16_t fft_size);
 void AudioStream_SendSpectrogram(q15_t *spectrogram_data, uint16_t num_frames, uint16_t fft_size);
 void AudioStream_SendStatus(void);
-void AudioStream_Task(void);
+int AudioStream_ProcessCommand(void);
 stream_mode_t AudioStream_GetMode(void);
 bool AudioStream_IsStreaming(void);
+void AudioStream_Task(void);
 
 #ifdef __cplusplus
 }

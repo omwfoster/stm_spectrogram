@@ -237,8 +237,8 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
 
 
     for (int i = 0; i < FFT_SIZE / 2; i++) {
-        int32_t scaled = (int32_t)mag_bins_output[i] << 1;  // Left shift = multiply by 2
-        mag_bins_output[i] = (int16_t)__SSAT(scaled, 16);   // Saturate to prevent overflow
+        int32_t scaled = (int32_t)mag_bins_intermediate[i] << 1;  // Left shift = multiply by 2
+        mag_bins_intermediate[i] = (int16_t)__SSAT(scaled, 16);   // Saturate to prevent overflow
     }
 
 
