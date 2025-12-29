@@ -30,6 +30,8 @@ PDM_Filter_Handler_t PDM1_filter_handler;
 PDM_Filter_Config_t PDM1_filter_config;
 
 #define SAMPLES_NUMBER = (uint16_t)((AUDIO_IN_SAMPLING_FREQUENCY / 1000U) * 1U);
+#define HTONS(A)  ((((uint16_t)(A) & 0xff00) >> 8) | (((uint16_t)(A) & 0x00ff) << 8))
+
 
 //int16_t PDM_Buffer[PDM_BUFFER_SIZE];
 pdm_buffer_t pdm_buffer;
@@ -52,14 +54,14 @@ void MX_PDM2PCM_Init(void)
   */
   PDM1_filter_handler.bit_order = PDM_FILTER_BIT_ORDER_LSB ;
   PDM1_filter_handler.endianness = PDM_FILTER_ENDIANNESS_LE;
-  PDM1_filter_handler.high_pass_tap = 2104533974;
+  PDM1_filter_handler.high_pass_tap = 2122358088;
   PDM1_filter_handler.in_ptr_channels = 1;
   PDM1_filter_handler.out_ptr_channels = 1;
   PDM_Filter_Init(&PDM1_filter_handler);
 
   PDM1_filter_config.decimation_factor = PDM_FILTER_DEC_FACTOR_64;
   PDM1_filter_config.output_samples_number = 16;
-  PDM1_filter_config.mic_gain =24;
+  PDM1_filter_config.mic_gain = 24;
   PDM_Filter_setConfig(&PDM1_filter_handler, &PDM1_filter_config);
 
   /* USER CODE BEGIN 3 */
@@ -74,31 +76,38 @@ void MX_PDM2PCM_Init(void)
 void Audio_Process_PDM(void) {
 	int16_t *next_cursor = output_cursor + PCM_OUT_SIZE;
 
+	 uint32_t index = 0;
+
 	if (transfer_state == TRANSFER_COMPLETE) {
+
+
 		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
 			// Still room in current block
-			PDM_Filter(pdm_buffer.last_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+
+			PDM_Filter((uint8_t *)pdm_buffer.last_half, (int16_t*)RecBuf, &PDM1_filter_handler);
 			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor = next_cursor;
 		} else {
 			// Block full, switch to next block
 			pcm_full = pcm_current_block;
 			Audio_Switch_Block();
-			PDM_Filter(pdm_buffer.last_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			PDM_Filter((uint8_t *)pdm_buffer.last_half, (int16_t*)RecBuf, &PDM1_filter_handler);
 			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor += PCM_OUT_SIZE;
 		}
 	} else if (transfer_state == TRANSFER_HALF) {
+
+
 		if (next_cursor <= end_output_block - PCM_OUT_SIZE) {
 			// Still room in current block
-			PDM_Filter(pdm_buffer.first_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			PDM_Filter((uint8_t *)pdm_buffer.first_half, (int16_t*)RecBuf, &PDM1_filter_handler);
 			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor = next_cursor;
 		} else {
 			// Block full, switch to next block
 			pcm_full = pcm_current_block;
 			Audio_Switch_Block();
-			PDM_Filter(pdm_buffer.first_half, (uint16_t*)RecBuf, &PDM1_filter_handler);
+			PDM_Filter((uint8_t *)pdm_buffer.first_half, (int16_t*)RecBuf, &PDM1_filter_handler);
 			memcpy(output_cursor, RecBuf, PCM_OUT_SIZE * sizeof(int16_t));
 			output_cursor += PCM_OUT_SIZE;
 		}

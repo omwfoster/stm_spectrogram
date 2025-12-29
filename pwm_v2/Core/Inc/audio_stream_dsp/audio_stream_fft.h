@@ -24,6 +24,8 @@
 
 
 
+void FFT_Test_Raw(int16_t *sample_block);
+
 /**
  * @brief Initialize FFT processing module
  * Must be called before using FFT functions

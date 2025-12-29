@@ -96,7 +96,7 @@ q15_t mag_bins[FFT_SIZE];              // Magnitude bins
 // PDM/PCM processing buffers
 extern int16_t RecBuf[PCM_OUT_SIZE];
 
-static uint16_t pcm_deinterleaved[FFT_SIZE];
+static int16_t pcm_deinterleaved[FFT_SIZE];
 extern pdm_buffer_t pdm_buffer;
 
 
@@ -210,7 +210,7 @@ int main(void) {
 
 				switch (stream_status.mode) {
 				case STREAM_MODE_RAW:
-					AudioStream_SendRawSamples((q15_t*) pcm_full, FFT_SIZE/2);
+					AudioStream_SendRawSamples(pcm_full, FFT_SIZE);
 					break;
 
 				case STREAM_MODE_FFT:
