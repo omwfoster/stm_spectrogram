@@ -61,7 +61,7 @@ void MX_PDM2PCM_Init(void)
 
   PDM1_filter_config.decimation_factor = PDM_FILTER_DEC_FACTOR_64;
   PDM1_filter_config.output_samples_number = 16;
-  PDM1_filter_config.mic_gain = 24;
+  PDM1_filter_config.mic_gain = 12;
   PDM_Filter_setConfig(&PDM1_filter_handler, &PDM1_filter_config);
 
   /* USER CODE BEGIN 3 */
@@ -116,16 +116,14 @@ void Audio_Process_PDM(void) {
 	transfer_state = TRANSFER_WAIT;
 }
 
-/**
- * @brief Switch between ping-pong PCM buffers
- */
+
 void Audio_Switch_Block(void) {
     block_ready = true;
     pcm_current_block =
             (pcm_current_block == pcm_output_block_ping) ?
                     pcm_output_block_pong : pcm_output_block_ping;
     output_cursor = &pcm_current_block[0];
-    end_output_block = &pcm_current_block[(FFT_SIZE) - PCM_OUT_SIZE];
+    end_output_block = &pcm_current_block[FFT_SIZE];  // Change to 512, not 496
 }
 
 
