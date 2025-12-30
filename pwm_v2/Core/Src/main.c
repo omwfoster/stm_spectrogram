@@ -175,7 +175,7 @@ int main(void) {
 
 	// Initialize buffer pointers
 	output_cursor = pcm_output_block_ping;
-	end_output_block = &pcm_output_block_ping[(FFT_SIZE * 2) - PCM_OUT_SIZE];
+	end_output_block = &pcm_output_block_ping[FFT_SIZE];
 
 	// Start PDM reception via SPI DMA
 	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer, PDM_BUFFER_SIZE);
@@ -196,7 +196,7 @@ int main(void) {
 		// Process PDM data when available
 		if (transfer_state != TRANSFER_WAIT
 				&& transfer_state != TRANSFER_ERROR) {
-			Audio_Process_PDM();
+
 		}
 
 		// Process full PCM block with FFT
@@ -400,7 +400,7 @@ static void MX_USART2_UART_Init(void) {
 	/* USER CODE END USART2_Init 1 */
 
 	huart2.Instance = USART2;
-	huart2.Init.BaudRate = 115200;
+	huart2.Init.BaudRate = 921600;
 	huart2.Init.WordLength = UART_WORDLENGTH_8B;
 	huart2.Init.StopBits = UART_STOPBITS_1;
 	huart2.Init.Parity = UART_PARITY_NONE;
@@ -463,6 +463,7 @@ static void MX_GPIO_Init(void) {
  */
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 	transfer_state = TRANSFER_COMPLETE;
+	Audio_Process_PDM();
 }
 
 /**
@@ -471,6 +472,7 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
  */
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 	transfer_state = TRANSFER_HALF;
+	Audio_Process_PDM();
 }
 
 /* USER CODE END 4 */
