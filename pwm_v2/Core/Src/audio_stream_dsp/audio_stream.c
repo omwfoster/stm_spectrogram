@@ -113,7 +113,6 @@ int AudioStream_ProcessCommand(void) {
 				|| packet.payload_type == AI_UINT8)) {
 			process_command_packet(&packet);
 
-
 		}
 		ai_logging_prepare_next_packet(&ai_device);
 		return result;
@@ -256,212 +255,211 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	}
 }
 
-
 /**
  * Send raw audio samples to PC using packet structure
  */
-void AudioStream_SendRawSamples(int16_t * samples, uint16_t num_samples) {
-if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_RAW) {
-	return;
-}
+void AudioStream_SendRawSamples(int16_t *samples, uint16_t num_samples) {
+	if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_RAW) {
+		return;
+	}
 
 // Create packet
-ai_logging_packet_t data_packet;
-ai_logging_clear_packet(&data_packet);
+	ai_logging_packet_t data_packet;
+	ai_logging_clear_packet(&data_packet);
 
 // Set message to identify data type
-static char msg[] = "RAW";
-data_packet.message = (uint8_t*) msg;
-data_packet.message_size = strlen(msg);
+	static char msg[] = "RAW";
+	data_packet.message = (uint8_t*) msg;
+	data_packet.message_size = strlen(msg);
 
 // Set payload
-data_packet.payload_type = AI_INT16;
-data_packet.payload = (uint8_t*) samples;
-data_packet.payload_size = num_samples * sizeof(int16_t);
+	data_packet.payload_type = AI_INT16;
+	data_packet.payload = (uint8_t*) samples;
+	data_packet.payload_size = num_samples * sizeof(int16_t);
 
 // Set shape (1D array)
-ai_logging_create_shape_1d(&data_packet.shape, num_samples);
+	ai_logging_create_shape_1d(&data_packet.shape, num_samples);
 
 // Set timestamp (optional)
-data_packet.timestamp = HAL_GetTick();
+	data_packet.timestamp = HAL_GetTick();
 
 // Send packet
-ai_logging_send_packet(&ai_device, &data_packet);
+	ai_logging_send_packet(&ai_device, &data_packet);
 
-stream_status.packets_sent++;
+	stream_status.packets_sent++;
 
 // If single shot, reset mode
-if (!stream_status.is_streaming) {
-	stream_status.mode = STREAM_MODE_IDLE;
-}
+	if (!stream_status.is_streaming) {
+		stream_status.mode = STREAM_MODE_IDLE;
+	}
 }
 
 /**
  * Send FFT magnitude data to PC using packet structure
  */
 void AudioStream_SendFFTData(q15_t *fft_magnitude, uint16_t fft_size) {
-if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_FFT) {
-	return;
-}
+	if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_FFT) {
+		return;
+	}
 
 // Create packet
-ai_logging_packet_t data_packet;
-ai_logging_clear_packet(&data_packet);
+	ai_logging_packet_t data_packet;
+	ai_logging_clear_packet(&data_packet);
 
 // Set message to identify data type
-static char msg[] = "FFT";
-data_packet.message = (uint8_t*) msg;
-data_packet.message_size = strlen(msg);
+	static char msg[] = "FFT";
+	data_packet.message = (uint8_t*) msg;
+	data_packet.message_size = strlen(msg);
 
 // Set payload
-data_packet.payload_type = AI_INT16;
-data_packet.payload = (uint8_t*) fft_magnitude;
-data_packet.payload_size = (fft_size * sizeof(q15_t) / 2);
+	data_packet.payload_type = AI_INT16;
+	data_packet.payload = (uint8_t*) fft_magnitude;
+	data_packet.payload_size = (fft_size * sizeof(q15_t) / 2);
 
 // Set shape (1D array)
-ai_logging_create_shape_1d(&data_packet.shape, fft_size);
+	ai_logging_create_shape_1d(&data_packet.shape, fft_size);
 
 // Set timestamp (optional)
-data_packet.timestamp = HAL_GetTick();
+	data_packet.timestamp = HAL_GetTick();
 
 // Send packet
-ai_logging_send_packet(&ai_device, &data_packet);
+	ai_logging_send_packet(&ai_device, &data_packet);
 
-stream_status.packets_sent++;
+	stream_status.packets_sent++;
 
 // If single shot, reset mode
-if (!stream_status.is_streaming) {
-	stream_status.mode = STREAM_MODE_IDLE;
-}
+	if (!stream_status.is_streaming) {
+		stream_status.mode = STREAM_MODE_IDLE;
+	}
 }
 
 /**
  * Send status information to PC using packet structure
  */
 void AudioStream_SendStatus(void) {
-ai_logging_packet_t status_packet;
-ai_logging_clear_packet(&status_packet);
+	ai_logging_packet_t status_packet;
+	ai_logging_clear_packet(&status_packet);
 
 // Pack status into bytes
-static uint8_t status_data[12];
-status_data[0] = RESP_STATUS;
-status_data[1] = (uint8_t) stream_status.mode;
-status_data[2] = stream_status.is_streaming ? 1 : 0;
+	static uint8_t status_data[12];
+	status_data[0] = RESP_STATUS;
+	status_data[1] = (uint8_t) stream_status.mode;
+	status_data[2] = stream_status.is_streaming ? 1 : 0;
 
 // Sample rate (4 bytes)
-memcpy(&status_data[3], &stream_status.sample_rate, 4);
+	memcpy(&status_data[3], &stream_status.sample_rate, 4);
 
 // FFT size (2 bytes)
-memcpy(&status_data[7], &stream_status.fft_size, 2);
+	memcpy(&status_data[7], &stream_status.fft_size, 2);
 
 // Packets sent (2 bytes)
-memcpy(&status_data[9], &stream_status.packets_sent, 2);
+	memcpy(&status_data[9], &stream_status.packets_sent, 2);
 
 // Decimation factor
-status_data[11] = stream_status.decimation_factor;
+	status_data[11] = stream_status.decimation_factor;
 
 // Set up packet
-status_packet.payload_type = AI_UINT8;
-status_packet.payload = status_data;
-status_packet.payload_size = 12;
+	status_packet.payload_type = AI_UINT8;
+	status_packet.payload = status_data;
+	status_packet.payload_size = 12;
 
 // Set shape
-ai_logging_create_shape_1d(&status_packet.shape, 12);
+	ai_logging_create_shape_1d(&status_packet.shape, 12);
 
 // Set message
-static char msg[] = "STATUS";
-status_packet.message = (uint8_t*) msg;
-status_packet.message_size = strlen(msg);
+	static char msg[] = "STATUS";
+	status_packet.message = (uint8_t*) msg;
+	status_packet.message_size = strlen(msg);
 
 // Send packet
-ai_logging_send_packet(&ai_device, &status_packet);
+	ai_logging_send_packet(&ai_device, &status_packet);
 }
 
 /**
  * Send FFT data with dB conversion (Q15 format)
  */
 void AudioStream_SendFFTDataDB(q15_t *fft_magnitude_db, uint16_t fft_size) {
-if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_FFT) {
-	return;
-}
+	if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_FFT) {
+		return;
+	}
 
 // Create packet
-ai_logging_packet_t data_packet;
-ai_logging_clear_packet(&data_packet);
+	ai_logging_packet_t data_packet;
+	ai_logging_clear_packet(&data_packet);
 
 // Set message to identify data type
-static char msg[] = "FFT_DB";
-data_packet.message = (uint8_t*) msg;
-data_packet.message_size = strlen(msg);
+	static char msg[] = "FFT_DB";
+	data_packet.message = (uint8_t*) msg;
+	data_packet.message_size = strlen(msg);
 
 // Set payload
-data_packet.payload_type = AI_INT16;
-data_packet.payload = (uint8_t*) fft_magnitude_db;
-data_packet.payload_size = fft_size * sizeof(q15_t);
+	data_packet.payload_type = AI_INT16;
+	data_packet.payload = (uint8_t*) fft_magnitude_db;
+	data_packet.payload_size = fft_size * sizeof(q15_t);
 
 // Set shape (1D array)
-ai_logging_create_shape_1d(&data_packet.shape, fft_size);
+	ai_logging_create_shape_1d(&data_packet.shape, fft_size);
 
 // Set timestamp
-data_packet.timestamp = HAL_GetTick();
+	data_packet.timestamp = HAL_GetTick();
 
 // Send packet
-ai_logging_send_packet(&ai_device, &data_packet);
+	ai_logging_send_packet(&ai_device, &data_packet);
 
-stream_status.packets_sent++;
+	stream_status.packets_sent++;
 
-if (!stream_status.is_streaming) {
-	stream_status.mode = STREAM_MODE_IDLE;
-}
+	if (!stream_status.is_streaming) {
+		stream_status.mode = STREAM_MODE_IDLE;
+	}
 }
 
 /**
  * Send 2D FFT spectrogram data (time vs frequency)
  */
 void AudioStream_SendSpectrogram(q15_t *spectrogram_data, uint16_t num_frames,
-	uint16_t fft_size) {
+		uint16_t fft_size) {
 // Create packet
-ai_logging_packet_t data_packet;
-ai_logging_clear_packet(&data_packet);
+	ai_logging_packet_t data_packet;
+	ai_logging_clear_packet(&data_packet);
 
 // Set message
-static char msg[] = "SPECTROGRAM";
-data_packet.message = (uint8_t*) msg;
-data_packet.message_size = strlen(msg);
+	static char msg[] = "SPECTROGRAM";
+	data_packet.message = (uint8_t*) msg;
+	data_packet.message_size = strlen(msg);
 
 // Set payload
-data_packet.payload_type = AI_INT16;
-data_packet.payload = (uint8_t*) spectrogram_data;
-data_packet.payload_size = num_frames * fft_size * sizeof(q15_t);
+	data_packet.payload_type = AI_INT16;
+	data_packet.payload = (uint8_t*) spectrogram_data;
+	data_packet.payload_size = num_frames * fft_size * sizeof(q15_t);
 
 // Set 2D shape (time x frequency)
-ai_logging_create_shape_2d(&data_packet.shape, num_frames, fft_size);
+	ai_logging_create_shape_2d(&data_packet.shape, num_frames, fft_size);
 
 // Set timestamp
-data_packet.timestamp = HAL_GetTick();
+	data_packet.timestamp = HAL_GetTick();
 
 // Send packet
-ai_logging_send_packet(&ai_device, &data_packet);
+	ai_logging_send_packet(&ai_device, &data_packet);
 }
 
 /**
  * Periodic task to check for commands
  */
 void AudioStream_Task(void) {
-AudioStream_ProcessCommand();
+	AudioStream_ProcessCommand();
 }
 
 /**
  * Get current streaming mode
  */
 stream_mode_t AudioStream_GetMode(void) {
-return stream_status.mode;
+	return stream_status.mode;
 }
 
 /**
  * Check if currently streaming
  */
 bool AudioStream_IsStreaming(void) {
-return stream_status.is_streaming;
+	return stream_status.is_streaming;
 }
 

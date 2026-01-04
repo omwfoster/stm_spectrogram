@@ -119,10 +119,7 @@ void FFT_Test_Raw(int16_t *sample_block) {
 	static arm_rfft_instance_q15 fft_instance;
 	static bool fft_initialized = false;
 	static q15_t temp_previous[FFT_SIZE];
-
 	q15_t dc_value;
-
-
 	arm_status status;
 
 
@@ -134,36 +131,10 @@ void FFT_Test_Raw(int16_t *sample_block) {
             return;
         }
         fft_initialized = true;
-        memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
     }
 
-    convert_pcm_for_fft(sample_block, pcm_q15, FFT_SIZE);
-    // Get DC component for normalization
-    dc_value = mag_bins[0];
-
-
-
-
-
-	apply_window_q15(pcm_q15, windowed_samples_q15, window, FFT_SIZE);
-	arm_rfft_q15(&fft_instance, (q15_t*) windowed_samples_q15, fft_output);
-	arm_cmplx_mag_q15(fft_output, mag_bins, FFT_SIZE);
-
-    // Safe DC normalization with clamping
-    for(int i = 0; i < FFT_SIZE; i++) {
-        if(mag_bins[i] >= dc_value) {
-            mag_bins[i] -= dc_value;
-            mag_bins_new[i] = (mag_bins[i] < 0) ? 0 : (q15_t)mag_bins[i];
-        } else {
-            mag_bins[i] = 0;  // Clamp to zero if result would be negative
-        }
-    }
-
-    arm_scale_q15(mag_bins, (q15_t)10922, 0, mag_bins_new, FFT_SIZE);
-    arm_scale_q15(mag_bins_previous, (q15_t)21845, 0, temp_previous, FFT_SIZE);
-    arm_add_q15(mag_bins_new, temp_previous, mag_bins_output, FFT_SIZE);
-
-    memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
+	arm_rfft_q15(&fft_instance, (q15_t*) sample_block, fft_output);
+	arm_cmplx_mag_q15(fft_output, mag_bins_output, FFT_SIZE);
 
 }
 
@@ -254,7 +225,7 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
 }
 
 
-void FFT_Postprocess_Adaptive_db(int16_t *sample_block) {
+void FFT_Postprocess_Adaptive_dB(int16_t *sample_block) {
     static arm_rfft_instance_q15 fft_instance;
     static bool fft_initialized = false;
     static q15_t temp_previous[FFT_SIZE];

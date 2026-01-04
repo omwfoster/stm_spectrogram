@@ -37,6 +37,7 @@
 #include <audio_stream_dsp/audio_stream_fft.h>
 #include <audio_stream_dsp/audio_stream_PDM.h>
 #include <audio_stream_dsp/audio_stream_spi.h>
+#include <audio_stream_dsp/audio_stream_tone.h>
 //#include "device_commands.h"
 /* USER CODE END Includes */
 
@@ -98,6 +99,7 @@ extern int16_t RecBuf[PCM_OUT_SIZE];
 
 static int16_t pcm_deinterleaved[FFT_SIZE];
 extern pdm_buffer_t pdm_buffer;
+uint32_t pdm_status = 0 ;
 
 
 
@@ -193,24 +195,21 @@ int main(void) {
 		HandleCommand(cmd);
 		}
 
-		// Process PDM data when available
-		if (transfer_state != TRANSFER_WAIT
-				&& transfer_state != TRANSFER_ERROR) {
 
-		}
 
 		// Process full PCM block with FFT
 		if (pcm_full != NULL) {
 			// Perform FFT with adaptive averaging
 			FFT_Postprocess_Adaptive((int16_t*) pcm_full);
-
+			//FFT_Test_Raw((int16_t*) pcm_full);
 			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
 
 
 				switch (stream_status.mode) {
 				case STREAM_MODE_RAW:
-					AudioStream_SendRawSamples(pcm_full, FFT_SIZE);
+					//AudioStream_SendRawSamples(pcm_full, FFT_SIZE);
+					AudioStream_SendRawSamples((int16_t *)test_440, FFT_SIZE);
 					break;
 
 				case STREAM_MODE_FFT:
@@ -463,7 +462,7 @@ static void MX_GPIO_Init(void) {
  */
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 	transfer_state = TRANSFER_COMPLETE;
-	Audio_Process_PDM();
+	pdm_status = Audio_Process_PDM();
 }
 
 /**
@@ -472,7 +471,7 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
  */
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 	transfer_state = TRANSFER_HALF;
-	Audio_Process_PDM();
+	pdm_status = Audio_Process_PDM();
 }
 
 /* USER CODE END 4 */

@@ -71,7 +71,7 @@ extern int16_t *pcm_current_block;
 
 /* PDM2PCM init function */
 void MX_PDM2PCM_Init(void);
-void Audio_Process_PDM(void);
+uint32_t Audio_Process_PDM(void);
 void Audio_Switch_Block(void);
 
 /* USER CODE BEGIN 2 */
@@ -79,7 +79,7 @@ void Audio_Switch_Block(void);
 /* PDM2PCM process function */
 uint8_t MX_PDM2PCM_Process(uint16_t *PDMBuf, uint16_t *PCMBuf);
 
-void Audio_Process_PDM(void);
+
 
 
 

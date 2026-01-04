@@ -73,7 +73,8 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block);
  *
  * @param sample_block Pointer to FFT output block
  */
-void FFT_Postprocess_Adaptive_DB(int16_t *sample_block);
+void FFT_Postprocess_Adaptive_dB(int16_t *sample_block);
+
 
 /**
  * @brief Generate and process 440Hz test tone
