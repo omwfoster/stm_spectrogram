@@ -265,17 +265,12 @@ void convert_char(const audio_sample_t *s_16, q15_t *pcm, uint16_t num) {
 
 }
 
-void fft_test_440_sample() {
+void FFT_Test_440Hz_Tone(void) {
 	static arm_rfft_instance_q15 fft_instance;
 
-	convert_char(test2k, pcm_samples, (FFT_SIZE * 2));
-	arm_status status;
-
-	apply_window_q15(pcm_samples, windowed_samples_q15, window, FFT_SIZE);
-
-	status = arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
+	arm_rfft_init_q15(&fft_instance, FFT_SIZE/*bin count*/,
 			0/*forward FFT*/, 1/*output bit order is normal*/);
-	arm_rfft_q15(&fft_instance, (q15_t*) pcm_samples, fft_output);
+	arm_rfft_q15(&fft_instance, (q15_t*) test_440, fft_output);
 	arm_cmplx_mag_q15(fft_output, mag_bins_output, FFT_SIZE);
 
 }

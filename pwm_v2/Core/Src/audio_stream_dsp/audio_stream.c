@@ -297,7 +297,7 @@ void AudioStream_SendRawSamples(int16_t *samples, uint16_t num_samples) {
 /**
  * Send FFT magnitude data to PC using packet structure
  */
-void AudioStream_SendFFTData(q15_t *fft_magnitude, uint16_t fft_size) {
+void AudioStream_SendFFTData(int16_t *fft_magnitude, uint16_t fft_size) {
 	if (!stream_status.is_streaming && stream_status.mode != STREAM_MODE_FFT) {
 		return;
 	}

@@ -200,7 +200,7 @@ int main(void) {
 		// Process full PCM block with FFT
 		if (pcm_full != NULL) {
 			// Perform FFT with adaptive averaging
-			FFT_Postprocess_Adaptive((int16_t*) pcm_full);
+			//FFT_Postprocess_Adaptive((int16_t*) pcm_full);
 			//FFT_Test_Raw((int16_t*) pcm_full);
 			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
@@ -208,12 +208,13 @@ int main(void) {
 
 				switch (stream_status.mode) {
 				case STREAM_MODE_RAW:
-					//AudioStream_SendRawSamples(pcm_full, FFT_SIZE);
+					//AudioStream_SendRawSamples((int16_t *)pcm_full, FFT_SIZE);
 					AudioStream_SendRawSamples((int16_t *)test_440, FFT_SIZE);
 					break;
 
 				case STREAM_MODE_FFT:
-					AudioStream_SendFFTData(mag_bins_output, FFT_SIZE / 2);
+					FFT_Test_440Hz_Tone();
+				//	AudioStream_SendFFTData((int16_t *)mag_bins_output, FFT_SIZE);
 					break;
 
 				case STREAM_MODE_FFT_DB:
