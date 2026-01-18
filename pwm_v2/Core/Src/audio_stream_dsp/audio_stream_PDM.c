@@ -61,7 +61,7 @@ void MX_PDM2PCM_Init(void)
 
   PDM1_filter_config.decimation_factor = DECIMATION_FACTOR;
   PDM1_filter_config.output_samples_number = 16;
-  PDM1_filter_config.mic_gain  = 32;
+  PDM1_filter_config.mic_gain  = 0;
   PDM_Filter_setConfig(&PDM1_filter_handler, &PDM1_filter_config);
 
   /* USER CODE BEGIN 3 */

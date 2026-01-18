@@ -32,8 +32,8 @@
 
 
 #define MAX_DECIMATION_FACTOR 128
-#define DECIMATION_FACTOR  PDM_FILTER_DEC_FACTOR_64
-#define PDM_BUFFER_SIZE         (64 * 2 * 2)  // Ping-pong buffer for DMA
+#define DECIMATION_FACTOR  PDM_FILTER_DEC_FACTOR_32
+#define PDM_BUFFER_SIZE         (32 * 2 * 2)  // Ping-pong buffer for DMA
 #define PCM_BUFFER_SIZE         FFT_SIZE      // Output PCM samples
 #define PCM_OUT_SIZE            16            // PDM filter output size
 

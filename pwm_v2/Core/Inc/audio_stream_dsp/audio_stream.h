@@ -11,7 +11,7 @@ extern "C" {
 #include "arm_math.h"
 #include "stm32f4xx_hal.h"
 
-#define FFT_SIZE	128
+#define FFT_SIZE	256
 
 // Command bytes from PC (matching device_commands.h)
 #define CMD_START_RAW_STREAM    0x10

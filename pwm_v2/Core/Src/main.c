@@ -200,8 +200,8 @@ int main(void) {
 		// Process full PCM block with FFT
 		if (pcm_full != NULL) {
 			// Perform FFT with adaptive averaging
-			FFT_Postprocess_Adaptive((int16_t*) pcm_full);
-			//FFT_Test_Raw((int16_t*) pcm_full);
+			//FFT_Postprocess_Adaptive((int16_t*) pcm_full);
+			FFT_Test_Raw((int16_t*) pcm_full);
 			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
 

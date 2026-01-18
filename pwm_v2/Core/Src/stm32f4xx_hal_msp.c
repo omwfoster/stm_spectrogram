@@ -158,8 +158,8 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     hdma_spi1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     hdma_spi1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
     hdma_spi1_rx.Init.MemInc = DMA_MINC_ENABLE;
-    hdma_spi1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    hdma_spi1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_spi1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_spi1_rx.Init.MemDataAlignment = DMA_PDATAALIGN_HALFWORD;
     hdma_spi1_rx.Init.Mode = DMA_CIRCULAR;
     hdma_spi1_rx.Init.Priority = DMA_PRIORITY_HIGH;
     hdma_spi1_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
@@ -167,6 +167,8 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     {
       Error_Handler();
     }
+
+
 
     __HAL_LINKDMA(hspi,hdmarx,hdma_spi1_rx);
 
