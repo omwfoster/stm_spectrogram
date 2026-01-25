@@ -185,9 +185,9 @@ static void process_command_packet(ai_logging_packet_t *packet) {
 		stream_status.is_streaming = false;  // Single shot
 		send_ack(cmd);
 		// ✅ FIX: Actually trigger FFT processing
-		if (pcm_full) {
+	//	if (pcm_full) {
 			//               FFT_Process(pcm_full);  // Make sure this calls AudioStream_SendFFTData()
-		}
+	//	}
 		break;
 
 	case CMD_GET_STATUS:

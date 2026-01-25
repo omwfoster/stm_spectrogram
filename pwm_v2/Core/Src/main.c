@@ -74,8 +74,8 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 
 // Audio buffers (external dependencies from fft_module.c)
-extern int16_t pcm_output_block_ping[FFT_SIZE];
-extern int16_t pcm_output_block_pong[FFT_SIZE];
+extern pcm_buffer_t pcm_buffer;
+extern pdm_buffer_t pdm_buffer;
 extern int16_t pcm_q15[FFT_SIZE];
 extern int16_t *pcm_current_block;
 extern PDM_Filter_Handler_t PDM1_filter_handler;
@@ -83,9 +83,9 @@ extern AudioStreamStatus_t stream_status;
 //extern int16_t PDM_Buffer[PDM_BUFFER_SIZE];
 
 // Buffer management
-int16_t *output_cursor = NULL;
-int16_t *end_output_block = NULL;
-volatile int16_t *pcm_full = NULL;
+
+
+
 bool block_ready = false;
 
 // Local audio processing buffers
@@ -98,7 +98,7 @@ q15_t mag_bins[FFT_SIZE];              // Magnitude bins
 extern int16_t RecBuf[PCM_OUT_SIZE];
 
 static int16_t pcm_deinterleaved[FFT_SIZE];
-extern pdm_buffer_t pdm_buffer;
+
 uint32_t pdm_status = 0 ;
 
 
@@ -138,25 +138,13 @@ static void HandleCommand(uint8_t);
  * @retval int
  */
 int main(void) {
-	/* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
-
-	/* MCU Configuration--------------------------------------------------------*/
 
 	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	HAL_Init();
 
-	/* USER CODE BEGIN Init */
-
-	/* USER CODE END Init */
-
 	/* Configure the system clock */
 	SystemClock_Config();
-
-	/* USER CODE BEGIN SysInit */
-
-	/* USER CODE END SysInit */
 
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
@@ -165,6 +153,7 @@ int main(void) {
 	MX_SPI1_Init();
 	MX_CRC_Init();
 	MX_PDM2PCM_Init();
+	Pcm_Initialise(&pcm_buffer);
 	MX_USART2_UART_Init();
 
 	/* USER CODE BEGIN 2 */
@@ -174,10 +163,6 @@ int main(void) {
 
 	// Initialize audio streaming
 	AudioStream_Init(&huart2);
-
-	// Initialize buffer pointers
-	output_cursor = pcm_output_block_ping;
-	end_output_block = &pcm_output_block_ping[FFT_SIZE];
 
 	// Start PDM reception via SPI DMA
 	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer, PDM_BUFFER_SIZE);
@@ -195,26 +180,24 @@ int main(void) {
 		HandleCommand(cmd);
 		}
 
-
-
 		// Process full PCM block with FFT
-		if (pcm_full != NULL) {
+		if (pcm_buffer.pcm_full != NULL) {
 			// Perform FFT with adaptive averaging
-			//FFT_Postprocess_Adaptive((int16_t*) pcm_full);
-			FFT_Test_Raw((int16_t*) pcm_full);
+			FFT_Postprocess_Adaptive((int16_t*) pcm_buffer.pcm_full);
+			//FFT_Test_Raw((int16_t*) pcm_full);
 			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
 
 
 				switch (stream_status.mode) {
 				case STREAM_MODE_RAW:
-					AudioStream_SendRawSamples((int16_t *)pcm_full, FFT_SIZE);
+					AudioStream_SendRawSamples((int16_t *)pcm_buffer.pcm_full, FFT_SIZE);
 				//	AudioStream_SendRawSamples((int16_t *)test_440, FFT_SIZE);
 					break;
 
 				case STREAM_MODE_FFT:
 				//	FFT_Test_440Hz_Tone();
-					AudioStream_SendFFTData((int16_t *)mag_bins_output, FFT_SIZE);
+					AudioStream_SendFFTData((int16_t *)mag_bins_output, FFT_SIZE/2);
 					break;
 
 				case STREAM_MODE_FFT_DB:
@@ -223,9 +206,6 @@ int main(void) {
 
 				case STREAM_MODE_IDLE:
 					break;
-
-
-
 
 				default:
 					AudioStream_SendFFTData(mag_bins_output, FFT_SIZE / 2);
@@ -236,7 +216,7 @@ int main(void) {
 			}
 			// Clear flags
 
-			pcm_full = NULL;
+			pcm_buffer.pcm_full = NULL;
 		}
 
 		/* USER CODE END WHILE */
@@ -331,11 +311,7 @@ void SystemClock_Config(void) {
  * @retval None
  */
 static void MX_CRC_Init(void) {
-	/* USER CODE BEGIN CRC_Init 0 */
-	/* USER CODE END CRC_Init 0 */
 
-	/* USER CODE BEGIN CRC_Init 1 */
-	/* USER CODE END CRC_Init 1 */
 
 	hcrc.Instance = CRC;
 	if (HAL_CRC_Init(&hcrc) != HAL_OK) {
@@ -343,8 +319,7 @@ static void MX_CRC_Init(void) {
 	}
 	__HAL_CRC_DR_RESET(&hcrc);
 
-	/* USER CODE BEGIN CRC_Init 2 */
-	/* USER CODE END CRC_Init 2 */
+
 }
 
 /**
@@ -453,17 +428,13 @@ static void MX_GPIO_Init(void) {
 
 
 
-
-
-
-
 /**
  * @brief SPI RX Complete Callback
  * @param hspi SPI handle
  */
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 	transfer_state = TRANSFER_COMPLETE;
-	pdm_status = Audio_Process_PDM();
+	pdm_status = Audio_Process_PDM(&pcm_buffer ,&pdm_buffer);
 }
 
 /**
@@ -472,7 +443,7 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
  */
 void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi) {
 	transfer_state = TRANSFER_HALF;
-	pdm_status = Audio_Process_PDM();
+	pdm_status = Audio_Process_PDM(&pcm_buffer ,&pdm_buffer);
 }
 
 /* USER CODE END 4 */
