@@ -38,31 +38,11 @@
 #include <audio_stream_dsp/audio_stream_PDM.h>
 #include <audio_stream_dsp/audio_stream_spi.h>
 #include <audio_stream_dsp/audio_stream_tone.h>
-//#include "device_commands.h"
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-// Buffer size definitions
 
 
 #define SEND_BUFFER_MAX_SIZE    2048          // AI Logging send buffer
-#define REC_FREQ                8000          // Recording frequency
 
 
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 CRC_HandleTypeDef hcrc;
@@ -71,7 +51,7 @@ DMA_HandleTypeDef hdma_spi1_rx;
 TIM_HandleTypeDef htim1;
 UART_HandleTypeDef huart2;
 
-/* USER CODE BEGIN PV */
+
 
 // Audio buffers (external dependencies from fft_module.c)
 extern pcm_buffer_t pcm_buffer;
@@ -80,11 +60,6 @@ extern int16_t pcm_q15[FFT_SIZE];
 extern int16_t *pcm_current_block;
 extern PDM_Filter_Handler_t PDM1_filter_handler;
 extern AudioStreamStatus_t stream_status;
-//extern int16_t PDM_Buffer[PDM_BUFFER_SIZE];
-
-// Buffer management
-
-
 
 bool block_ready = false;
 
@@ -121,26 +96,9 @@ static void MX_CRC_Init(void);
 static void MX_USART2_UART_Init(void);
 static void HandleCommand(uint8_t);
 
-/* USER CODE BEGIN PFP */
 
-
-
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
- * @brief  The application entry point.
- * @retval int
- */
 int main(void) {
 
-
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	HAL_Init();
 
 	/* Configure the system clock */
@@ -149,14 +107,13 @@ int main(void) {
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
 	MX_DMA_Init();
-	// MX_TIM1_Init();
 	MX_SPI1_Init();
 	MX_CRC_Init();
 	MX_PDM2PCM_Init();
 	Pcm_Initialise(&pcm_buffer);
 	MX_USART2_UART_Init();
 
-	/* USER CODE BEGIN 2 */
+
 
 	// Initialize FFT windowing
 	FFT_Window_Init();
@@ -167,11 +124,6 @@ int main(void) {
 	// Start PDM reception via SPI DMA
 	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer, PDM_BUFFER_SIZE);
 
-
-	/* USER CODE END 2 */
-
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
 	while (1) {
 
 		uint8_t cmd = AudioStream_ProcessCommand();
@@ -187,8 +139,6 @@ int main(void) {
 			//FFT_Test_Raw((int16_t*) pcm_full);
 			if ((block_ready == true) && (stream_status.is_streaming == true)) {
 
-
-
 				switch (stream_status.mode) {
 				case STREAM_MODE_RAW:
 					AudioStream_SendRawSamples((int16_t *)pcm_buffer.pcm_full, FFT_SIZE);
@@ -196,12 +146,12 @@ int main(void) {
 					break;
 
 				case STREAM_MODE_FFT:
-				//	FFT_Test_440Hz_Tone();
+
 					AudioStream_SendFFTData((int16_t *)mag_bins_output, FFT_SIZE/2);
 					break;
 
 				case STREAM_MODE_FFT_DB:
-//					AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
+					AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
 					break;
 
 				case STREAM_MODE_IDLE:
@@ -219,11 +169,8 @@ int main(void) {
 			pcm_buffer.pcm_full = NULL;
 		}
 
-		/* USER CODE END WHILE */
-
-		/* USER CODE BEGIN 3 */
 	}
-	/* USER CODE END 3 */
+
 }
 
 
@@ -240,7 +187,7 @@ static void HandleCommand(uint8_t cmd)
 
         case CMD_SEND_SINGLE_RAW:
             // Send single raw audio buffer
-            // Call your function to send one buffer
+            // Call function to send one buffer
         	AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
         	break;
 
@@ -251,7 +198,7 @@ static void HandleCommand(uint8_t cmd)
 
         case CMD_SEND_SINGLE_FFT:
             // Send single FFT result
-            // Call your function to compute and send one FFT
+            // Call function to compute and send one FFT
         	AudioStream_SendFFTDataDB(db_bins_output, FFT_SIZE / 2);
         	break;
 
@@ -263,10 +210,7 @@ static void HandleCommand(uint8_t cmd)
 }
 
 
-/**
- * @brief System Clock Configuration
- * @retval None
- */
+
 void SystemClock_Config(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
 	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
@@ -305,11 +249,7 @@ void SystemClock_Config(void) {
 	}
 }
 
-/**
- * @brief CRC Initialization Function
- * @param None
- * @retval None
- */
+
 static void MX_CRC_Init(void) {
 
 
@@ -319,14 +259,9 @@ static void MX_CRC_Init(void) {
 	}
 	__HAL_CRC_DR_RESET(&hcrc);
 
-
 }
 
-/**
- * @brief TIM1 Initialization Function
- * @param None
- * @retval None
- */
+
 static void MX_TIM1_Init(void) {
 	/* USER CODE BEGIN TIM1_Init 0 */
 	/* USER CODE END TIM1_Init 0 */
@@ -423,9 +358,6 @@ static void MX_GPIO_Init(void) {
 }
 
 /* USER CODE BEGIN 4 */
-
-
-
 
 
 /**

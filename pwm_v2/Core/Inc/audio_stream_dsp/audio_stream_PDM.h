@@ -44,31 +44,28 @@
   } transfer_state_t;
 
   // PDM buffer union for half/full access
-  typedef union {
-  	struct {
+
+  	typedef struct {
   		uint8_t first_half[PDM_BUFFER_SIZE / 2];
   		uint32_t guard1;
   		uint8_t last_half[PDM_BUFFER_SIZE / 2];
   		uint32_t guard2;
-  	};
-  	uint8_t PDM_In[PDM_BUFFER_SIZE];
-  } pdm_buffer_t;
+  	} pdm_buffer_t;
 
 
-  typedef union {
-  	struct {
+
+  typedef struct {
   		int16_t ping[FFT_SIZE / 2];
-  		int32_t guard1;
+  		uint32_t guard1;
   		int16_t pong[FFT_SIZE / 2];
-  		int32_t guard2;
+  		uint32_t guard2;
   		int16_t * pcm_current_block;
   		int16_t * pcm_full;
   		int16_t * cursor;
   		int16_t * end_output_block;
   		bool initialised;
-  	};
-  	int16_t PCM_In[FFT_SIZE];
-  } pcm_buffer_t;
+  	}pcm_buffer_t;
+
 
 
 
@@ -87,9 +84,12 @@ extern int16_t *pcm_current_block;
 
 /* PDM2PCM init function */
 void MX_PDM2PCM_Init(void);
-uint32_t Audio_Process_PDM(pcm_buffer_t *pcm, pdm_buffer_t * pdm_buffer );
-void Audio_Switch_Block(pcm_buffer_t * pcm);
-void Pcm_Initialise(pcm_buffer_t *pcm);
+uint32_t Audio_Process_PDM(pcm_buffer_t *pcm_buffer, pdm_buffer_t * pdm_buffer );
+void Audio_Switch_Block(pcm_buffer_t * pcm_buffer);
+void Pcm_Initialise(pcm_buffer_t *pcm_buffer);
+
+void Check_PDM_Guards(pdm_buffer_t *buf);
+void Check_PCM_Guards(pcm_buffer_t *buf);
 
 /* USER CODE BEGIN 2 */
 
