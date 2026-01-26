@@ -5,6 +5,7 @@
  *      Author: oliverfoster
  */
 #include "stdbool.h"
+#include <stdlib.h>
 #include <arm_math.h>
 #include <audio_stream_dsp/audio_stream.h>
 #include <audio_stream_dsp/audio_stream_fft.h>
@@ -122,9 +123,6 @@ void FFT_Test_Raw(int16_t *sample_block) {
 	q15_t dc_value;
 	arm_status status;
 
-
-
-
     if (!fft_initialized) {
         status = arm_rfft_init_q15(&fft_instance, FFT_SIZE, 0, 1);
         if (status != ARM_MATH_SUCCESS) {
@@ -137,8 +135,6 @@ void FFT_Test_Raw(int16_t *sample_block) {
 	arm_cmplx_mag_q15(fft_output, mag_bins_output, FFT_SIZE);
 
 }
-
-
 
 
 void FFT_Postprocess_Exponential(int16_t *sample_block) {
@@ -158,8 +154,6 @@ void FFT_Postprocess_Exponential(int16_t *sample_block) {
         fft_initialized = true;
         memset(mag_bins_previous, 0, FFT_SIZE * sizeof(q15_t));
     }
-
-
 
 
     // Apply window and perform FFT
@@ -216,9 +210,6 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
     FFT_Adaptive_Averaging(mag_bins_intermediate, mag_bins_previous, mag_bins_output, FFT_SIZE) ;
     // Update previous
     memcpy(mag_bins_previous, mag_bins_output, FFT_SIZE * sizeof(q15_t));
-
-
-
 
 
 
