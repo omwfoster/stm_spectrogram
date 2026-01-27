@@ -92,7 +92,7 @@ void Pcm_Initialise(pcm_buffer_t *pcm_buffer) {
 	pcm_buffer->pcm_full = NULL;
 	pcm_buffer->pcm_current_block = pcm_buffer->ping;
 	pcm_buffer->cursor = pcm_buffer->ping;
-	pcm_buffer->end_output_block = (int16_t*) &pcm_buffer->guard1;
+	pcm_buffer->end_output_block = &pcm_buffer->pcm_current_block[FFT_SIZE-1] ;
 	pcm_buffer->initialised = true;
 
 }
@@ -101,12 +101,12 @@ void Audio_Switch_Block(pcm_buffer_t *pcm_buffer) {
 
 	block_ready = true;
 
-	if (pcm_buffer->pcm_current_block == pcm_buffer->ping) {
-		pcm_buffer->pcm_current_block = pcm_buffer->pong;
-		pcm_buffer->end_output_block = (int16_t*) &pcm_buffer->guard2;
+	if (pcm_buffer->pcm_current_block == &pcm_buffer->ping[0]) {
+		pcm_buffer->pcm_current_block = &pcm_buffer->pong[0];
+		pcm_buffer->end_output_block = &pcm_buffer->pcm_current_block[FFT_SIZE-1];
 	} else {
-		pcm_buffer->pcm_current_block = pcm_buffer->ping;
-		pcm_buffer->end_output_block = (int16_t*) &pcm_buffer->guard1;
+		pcm_buffer->pcm_current_block = &pcm_buffer->ping[0];
+		pcm_buffer->end_output_block = &pcm_buffer->pcm_current_block[FFT_SIZE-1];
 	}
 
 	pcm_buffer->cursor = pcm_buffer->pcm_current_block;

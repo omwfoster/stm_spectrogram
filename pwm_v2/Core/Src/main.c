@@ -122,7 +122,7 @@ int main(void) {
 	AudioStream_Init(&huart2);
 
 	// Start PDM reception via SPI DMA
-	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer, PDM_BUFFER_SIZE);
+	HAL_SPI_Receive_DMA(&hspi1, (uint8_t*) &pdm_buffer.PDM_In, PDM_BUFFER_SIZE /2);
 
 	while (1) {
 

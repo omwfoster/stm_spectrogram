@@ -12,9 +12,6 @@
 #include <audio_stream_dsp/audio_stream_window.h>
 
 
-extern int16_t pcm_output_block_ping[FFT_SIZE * 2];
-extern int16_t pcm_output_block_pong[FFT_SIZE * 2];
-int16_t *pcm_current_block = pcm_output_block_ping;
 int16_t  pcm_q15[FFT_SIZE];
 
 extern q15_t fft_output[]; // FFT_SIZE * 2

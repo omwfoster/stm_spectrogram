@@ -26,26 +26,38 @@
 
   // PDM buffer union for half/full access
 
-  	typedef struct {
-  		uint8_t first_half[PDM_BUFFER_SIZE / 2];
-  		uint32_t guard1;
-  		uint8_t last_half[PDM_BUFFER_SIZE / 2];
-  		uint32_t guard2;
-  	} pdm_buffer_t;
+  typedef struct {
+      uint32_t guard1;
+      union {
+          struct {
+              uint8_t first_half[PDM_BUFFER_SIZE / 2];
+              uint8_t last_half[PDM_BUFFER_SIZE / 2];
+          };
+          uint8_t PDM_In[PDM_BUFFER_SIZE];
+      };
+      uint32_t guard2;
+  } pdm_buffer_t;
 
 
 
   typedef struct {
-  		int16_t ping[FFT_SIZE / 2];
-  		uint32_t guard1;
-  		int16_t pong[FFT_SIZE / 2];
-  		uint32_t guard2;
-  		int16_t * pcm_current_block;
-  		int16_t * pcm_full;
-  		int16_t * cursor;
-  		int16_t * end_output_block;
-  		bool initialised;
-  	}pcm_buffer_t;
+      uint32_t guard1;
+      union {
+          struct {
+              int16_t ping[FFT_SIZE];
+              int16_t pong[FFT_SIZE];
+          };
+          int16_t PCM_In[FFT_SIZE * 2];
+      };
+      uint32_t guard2;
+
+      // Metadata below guards
+      int16_t *pcm_current_block;
+      int16_t *pcm_full;
+      int16_t *cursor;
+      int16_t *end_output_block;
+      bool initialised;
+  } pcm_buffer_t;
 
 
 
