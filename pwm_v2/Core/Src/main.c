@@ -147,7 +147,7 @@ int main(void) {
 
 				case STREAM_MODE_FFT:
 
-					AudioStream_SendFFTData((int16_t *)mag_bins_output, FFT_SIZE/2);
+					AudioStream_SendFFTData((int16_t *)mag_bins_output, FFT_SIZE/4);
 					break;
 
 				case STREAM_MODE_FFT_DB:

@@ -190,12 +190,9 @@ void FFT_Postprocess_Adaptive(volatile int16_t *sample_block) {
     }
 
 
-   // FFT_Preprocess(sample_block);
 
-    // Apply window and perform FFT
-//    apply_window_q15((q15_t *)sample_block, (q15_t *)windowed_samples_q15, window, FFT_SIZE);
     arm_rfft_q15(&fft_instance, (q15_t*)sample_block, fft_output);
-    arm_cmplx_mag_q15(fft_output, mag_bins_intermediate, FFT_SIZE / 2);
+    arm_cmplx_mag_q15(fft_output, mag_bins_intermediate, FFT_SIZE * 2);
 
 
     for (int i = 0; i < FFT_SIZE / 2; i++) {
